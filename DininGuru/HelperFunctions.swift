@@ -47,6 +47,17 @@ struct Venue: Identifiable, Codable {
    }
 }
 
+
+struct Comment: Identifiable, Codable {
+   let id: Int
+   let venue_id: Int
+   let user_id: Int
+   let text: String
+   var like_count: Int
+   var has_liked: Bool
+}
+
+
 func formatTime(_ timeString: String) -> String {
    let formatter = DateFormatter()
    formatter.dateFormat = "yyyy-MM-dd'T'HH:mm:ss"
@@ -109,28 +120,9 @@ func formatDayParts(_ dayparts: [Venue.DayPart]) -> String {
 
 
 func isOpenNow(venue: Venue) -> Bool {
-   let now = Date()
-   let formatter = DateFormatter()
-   formatter.dateFormat = "yyyy-MM-dd'T'HH:mm:ss"
-   formatter.locale = Locale(identifier: "en_US_POSIX")
-   
-   let dateFormatter = DateFormatter()
-   dateFormatter.dateFormat = "yyyy-MM-dd"
-   let todayDateString = dateFormatter.string(from: now)
-   
-   guard let day = venue.days.first(where: { $0.date == todayDateString }) else {
-      return false // no data for today
-   }
-   
-   for daypart in day.dayparts {
-      if let start = formatter.date(from: daypart.starttime), let end = formatter.date(from: daypart.endtime) {
-         if now >= start && now <= end {
-            return true
-         }
-      }
-   }
-   return false
+   return getClosingTime(venue: venue) != nil
 }
+
 
 class ImageCache {
    static let shared = ImageCache() // singleton instance
