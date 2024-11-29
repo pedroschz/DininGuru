@@ -18,8 +18,14 @@ class CommentService {
    private init() {}
    
    // Fetch all comments for a specific venue
-   func fetchComments(venueId: String, completion: @escaping ([Comment]) -> Void) {
-      guard let url = URL(string: "http://127.0.0.1:8000/api/comments/\(venueId)") else {
+   func fetchComments(venueId: String, mealPeriod: String, userId: String, completion: @escaping ([Comment]) -> Void) {
+      var urlComponents = URLComponents(string: "http://127.0.0.1:8000/api/comments/\(venueId)")!
+      urlComponents.queryItems = [
+         URLQueryItem(name: "meal_period", value: mealPeriod),
+         URLQueryItem(name: "user_id", value: userId)
+      ]
+      
+      guard let url = urlComponents.url else {
          completion([])
          return
       }
@@ -36,7 +42,6 @@ class CommentService {
             return
          }
          do {
-            // Decode the wrapper response
             let fetchResponse = try JSONDecoder().decode(FetchCommentsResponse.self, from: data)
             completion(fetchResponse.comments)
          } catch {
@@ -47,7 +52,7 @@ class CommentService {
    }
    
    // Submit a new comment or update existing one for a user
-   func submitOrUpdateComment(venueId: String, userId: String, text: String, completion: @escaping (Bool) -> Void) {
+   func submitOrUpdateComment(venueId: String, userId: String, text: String, mealPeriod: String, completion: @escaping (Bool) -> Void) {
       guard let url = URL(string: "http://127.0.0.1:8000/api/comments") else {
          completion(false)
          return
@@ -60,21 +65,38 @@ class CommentService {
       let body: [String: Any] = [
          "venue_id": Int(venueId) ?? 0,
          "user_id": Int(userId) ?? 0,
-         "text": text
+         "text": text,
+         "meal_period": mealPeriod // Add meal_period here
       ]
       
-      request.httpBody = try? JSONSerialization.data(withJSONObject: body, options: [])
+      do {
+         request.httpBody = try JSONSerialization.data(withJSONObject: body, options: [])
+      } catch {
+         print("Error encoding comment data: \(error.localizedDescription)")
+         completion(false)
+         return
+      }
       
-      URLSession.shared.dataTask(with: request) { _, response, error in
+      URLSession.shared.dataTask(with: request) { data, response, error in
          if let error = error {
-            print("Error submitting/updating comment: \(error)")
+            print("Error submitting/updating comment: \(error.localizedDescription)")
             completion(false)
             return
          }
-         if let httpResponse = response as? HTTPURLResponse, (200...299).contains(httpResponse.statusCode) {
+         
+         guard let httpResponse = response as? HTTPURLResponse else {
+            print("Invalid response")
+            completion(false)
+            return
+         }
+         
+         if (200...299).contains(httpResponse.statusCode) {
             completion(true)
          } else {
-            print("Failed to submit/update comment. Status Code: \((response as? HTTPURLResponse)?.statusCode ?? 0)")
+            if let data = data, let responseBody = String(data: data, encoding: .utf8) {
+               print("Failed to submit/update comment. Status Code: \(httpResponse.statusCode)")
+               print("Response Body: \(responseBody)")
+            }
             completion(false)
          }
       }.resume()

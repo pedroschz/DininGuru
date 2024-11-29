@@ -10,6 +10,7 @@ import SwiftUI
 
 class AppState: ObservableObject {
    @Published var isLoggedIn: Bool = false
+   @Published var isLoggedOut: Bool = false
    
    init() {
       if let _ = UserDefaults.standard.value(forKey: "userId") as? Int {
@@ -28,7 +29,6 @@ struct LoginView: View {
    @AppStorage("userId") var userId: Int?
    @AppStorage("userEmail") var userEmail: String?
    @EnvironmentObject var appState: AppState
-
    
    var body: some View {
       VStack(spacing: 20) {
@@ -81,6 +81,20 @@ struct LoginView: View {
          
          Spacer()
       }
+      .onAppear {
+         // Reset state when the view appears
+         if appState.isLoggedOut {
+            resetLoginState()
+            appState.isLoggedOut = false
+         }
+      }
+   }
+   
+   private func resetLoginState() {
+      username = ""
+      code = ""
+      isVerificationSent = false
+      errorMessage = nil
    }
    
    private func sendVerificationCode() {

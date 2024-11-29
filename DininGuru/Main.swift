@@ -33,6 +33,10 @@ struct Main: View {
    @ObservedObject private var networkMonitor = NetworkMonitor() // monitors network status
    private let diningService = DiningService() // service to fetch dining data
    
+   @AppStorage("userId") var userId: Int?
+   @AppStorage("userEmail") var userEmail: String?
+   @EnvironmentObject var appState: AppState
+   
    // Set of IDs representing the five dining halls
    let diningHallIDs: Set<Int> = [593, 636, 637, 1442, 1464004]
    
@@ -57,6 +61,14 @@ struct Main: View {
                Text("Today's Ratings ⭐️")
                   .font(.largeTitle)
                   .fontWeight(.bold)
+               
+               // Display user info here
+               if let userId = userId, let userEmail = userEmail {
+                  Text("Logged in as: \(userEmail) (ID: \(userId))")
+                     .font(.subheadline)
+                     .foregroundColor(.gray)
+               }
+               
             }
             .padding(.horizontal, 16)
             .padding(.top, 16)
@@ -73,10 +85,19 @@ struct Main: View {
                   }
                }
             }
+            
+            
             .listStyle(PlainListStyle())
             .alert(isPresented: $showAlert) {
                Alert(title: Text("Network Error"), message: Text(alertMessage), dismissButton: .default(Text("OK")))
             }
+            
+            Spacer()
+            Button(action: logout) {
+               Text("Logout")
+                  .foregroundColor(.red)
+            }
+            .padding(.bottom)
          }
          .onAppear {
             fetchDiningData()
@@ -111,6 +132,16 @@ struct Main: View {
             // TODO: Maybe show a more user-friendly error message here but for now it works
          }
       }
+   }
+   
+   private func logout() {
+      // Clear user data
+      userId = nil
+      userEmail = nil
+      
+      // Update app state
+      appState.isLoggedIn = false
+      appState.isLoggedOut = true // Notify LoginView to reset
    }
    
    // Save venues to shared defaults for widget usage

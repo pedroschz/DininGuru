@@ -12,29 +12,30 @@ import WebKit
 struct VenueDetailView: View {
    let venue: Venue
    let venueURL: String?
+   
    @AppStorage("userId") var userId: Int?
-
+   @AppStorage("userEmail") var userEmail: String?
 
    @State private var image: UIImage? = nil
    @State private var isLoadingImage = false
-   
-   // State variables for web view and alerts
-   @State private var selectedURL: URL? = nil // URL selected for web view
-   @State private var isWebViewLoading = false // Is web view loading
-   @State private var showAlert = false // Show alert for errors
-   @State private var alertMessage = "" // Message for the alert
-   
    @ObservedObject private var networkMonitor = NetworkMonitor() // Monitors network status
-   @State private var selectedRating: VenueRating = .neutral
    
+   // Rating-related state variables
+   @State private var selectedRating: VenueRating = .neutral
    @State private var averageRating: Double? = nil
-   @State private var showSuccessMessage = false
-   @State private var showErrorMessage = false
    
    // Comment-related state variables
    @State private var comments: [Comment] = []
    @State private var newCommentText: String = ""
    @State private var isSubmittingComment = false
+   
+   // Alert-related state variables
+   @State private var showAlert = false // Show alert for errors
+   @State private var showSuccessMessage = false
+   @State private var alertMessage = "" // Message for the alert
+   @State private var showErrorMessage = false
+   @State private var selectedURL: URL? = nil // URL selected for web view
+   @State private var isWebViewLoading = false // Is web view loading
    
    
    var body: some View {
@@ -48,7 +49,8 @@ struct VenueDetailView: View {
                newCommentText: $newCommentText,
                isSubmittingComment: isSubmittingComment,
                submitOrUpdateComment: submitOrUpdateComment,
-               likeComment: likeComment
+               likeComment: likeComment,
+               mealPeriod: getCurrentMealPeriod() // Pass mealPeriod here
             )
             WebsiteButton(showAlert: $showAlert, alertMessage: alertMessage, handleVisitWebsite: handleVisitWebsite)
          }
@@ -59,11 +61,16 @@ struct VenueDetailView: View {
          print("VenueDetailView appeared. UserId is: \(String(describing: userId))")
          loadImage()
          fetchAverageRating()
-         fetchComments(venueId: String(venue.id)) { fetchedComments in
+         fetchComments(
+            venueId: String(venue.id),
+            mealPeriod: getCurrentMealPeriod(),
+            userId: String(userId ?? 0) // Ensure userId is not nil
+         ) { fetchedComments in
             DispatchQueue.main.async {
                self.comments = fetchedComments
             }
          }
+
       }
       .alert(isPresented: $showSuccessMessage) {
          Alert(
@@ -138,15 +145,13 @@ struct VenueDetailView: View {
    
    // MARK: - Comment Functions
    
-   func fetchComments(venueId: String, completion: @escaping ([Comment]) -> Void) {
-      let mealPeriod = getCurrentMealPeriod()
-      let userId = "1" // Replace with actual user ID logic
-      
+   func fetchComments(venueId: String, mealPeriod: String, userId: String, completion: @escaping ([Comment]) -> Void) {
       var urlComponents = URLComponents(string: "http://127.0.0.1:8000/api/comments/\(venueId)")!
       urlComponents.queryItems = [
          URLQueryItem(name: "meal_period", value: mealPeriod),
          URLQueryItem(name: "user_id", value: userId)
       ]
+   
       
       guard let url = urlComponents.url else {
          completion([])
@@ -206,12 +211,66 @@ struct VenueDetailView: View {
           return
        }
        
-      CommentService.shared.submitOrUpdateComment(venueId: String(venue.id), userId: String(userId), text: trimmedComment) { success in
+      CommentService.shared.submitOrUpdateComment(
+         venueId: String(venue.id),
+         userId: String(userId),
+         text: trimmedComment,
+         mealPeriod: getCurrentMealPeriod() // Pass mealPeriod here
+      
+      ) { success in
          DispatchQueue.main.async {
             isSubmittingComment = false
             if success {
                newCommentText = ""
-               fetchComments(venueId: String(venue.id)) { fetchedComments in
+               fetchComments(
+                  venueId: String(venue.id),
+                  mealPeriod: getCurrentMealPeriod(),
+                  userId: String(userId) // Ensure userId is not nil
+               ) { fetchedComments in
+                  DispatchQueue.main.async {
+                     self.comments = fetchedComments
+                  }
+               }
+
+            } else {
+               alertMessage = "Failed to submit comment. Please try again later."
+               showAlert = true
+            }
+         }
+      }
+   }
+   
+   
+   /* private func submitOrUpdateCommentAction() {
+      let trimmedComment = newCommentText.trimmingCharacters(in: .whitespacesAndNewlines)
+      guard !trimmedComment.isEmpty else { return }
+      
+      isSubmittingComment = true
+      
+      // Assuming userId is available in this view
+      guard let userId = userId else {
+         // Handle the case where userId is nil (user not logged in)
+         // For example, show an alert or navigate to the login screen
+         showErrorMessage = true
+         alertMessage = "Please log in to submit a rating."
+         return
+      }
+      
+      CommentService.shared.submitOrUpdateComment(
+         venueId: String(venue.id),
+         userId: String(userId),
+         text: trimmedComment,
+         mealPeriod: getCurrentMealPeriod()
+      ) { success in
+         DispatchQueue.main.async {
+            isSubmittingComment = false
+            if success {
+               newCommentText = ""
+               fetchComments(
+                  venueId: String(venue.id),
+                  mealPeriod: getCurrentMealPeriod(),
+                  userId: String(userId)
+               ) { fetchedComments in
                   DispatchQueue.main.async {
                      self.comments = fetchedComments
                   }
@@ -222,7 +281,10 @@ struct VenueDetailView: View {
             }
          }
       }
-   }
+   }*/
+   
+   
+   
    
     func likeComment(_ comment: Comment) {
        guard let userId = userId else {
@@ -232,22 +294,25 @@ struct VenueDetailView: View {
           alertMessage = "Please log in to submit a rating."
           return
        }
-      CommentService.shared.likeComment(commentId: String(comment.id), userId: String(userId)) { success in
-         if success {
-            DispatchQueue.main.async {
-               // Update the local like count and like state
-               if let index = comments.firstIndex(where: { $0.id == comment.id }) {
-                  comments[index].like_count += 1
-                  comments[index].has_liked = true
-               }
-            }
-         } else {
-            DispatchQueue.main.async {
-               alertMessage = "Failed to like the comment. Please try again."
-               showAlert = true
-            }
-         }
-      }
+       CommentService.shared.likeComment(
+         commentId: String(comment.id),
+         userId: String(userId)
+       ) { success in
+          if success {
+             DispatchQueue.main.async {
+                // Update the local like count and like state
+                if let index = comments.firstIndex(where: { $0.id == comment.id }) {
+                   comments[index].like_count += 1
+                   comments[index].has_liked = true
+                }
+             }
+          } else {
+             DispatchQueue.main.async {
+                alertMessage = "Failed to like the comment. Please try again."
+                showAlert = true
+             }
+          }
+       }
    }
    
    // MARK: - Image Loading
@@ -398,6 +463,7 @@ struct CommentsSection: View {
    let isSubmittingComment: Bool
    let submitOrUpdateComment: () -> Void
    let likeComment: (Comment) -> Void
+   let mealPeriod: String // Add mealPeriod as a property
    
    var body: some View {
       VStack(alignment: .leading, spacing: 8) {
@@ -445,6 +511,7 @@ struct CommentsSection: View {
       }
       .padding(.horizontal)
    }
+   
 }
 
 
