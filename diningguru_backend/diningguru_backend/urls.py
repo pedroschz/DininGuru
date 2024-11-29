@@ -1,3 +1,5 @@
+# diningguru_backend/urls.py
+
 """
 URL configuration for diningguru_backend project.
 
@@ -14,8 +16,10 @@ Including another URLconf
     1. Import the include() function: from django.urls import include, path
     2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
 """
+
 from django.urls import path, include
 
 urlpatterns = [
-    path('api/', include('ratings.urls')),  # Include ratings URLs under the /api/ path
+    path('api/', include('ratings.urls')),
+    path('api/accounts/', include('accounts.urls')),
 ]
