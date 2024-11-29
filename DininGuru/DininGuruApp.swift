@@ -9,9 +9,20 @@ import SwiftUI
 
 @main
 struct DininGuruApp: App {
+   @StateObject var appState = AppState()
+   
    var body: some Scene {
       WindowGroup {
-         Main()
+         if appState.isLoggedIn {
+            Main()
+               .environmentObject(appState)
+         } else {
+            LoginView()
+               .environmentObject(appState)
+         }
       }
    }
 }
+
+
+

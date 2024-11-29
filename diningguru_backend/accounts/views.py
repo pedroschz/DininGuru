@@ -7,6 +7,15 @@ from django.utils.encoding import force_bytes, force_str
 from django.template.loader import render_to_string
 from django.core.mail import send_mail
 from django.contrib.auth.decorators import login_required
+from django.views.decorators.csrf import csrf_exempt
+from django.http import JsonResponse
+from django.utils import timezone
+from datetime import timedelta
+import random
+import string
+import json
+from .models import VerificationCode
+
 
 User = get_user_model()
 
@@ -54,3 +63,74 @@ def login_with_link(request, uidb64, token):
 def user_email(request):
     email = request.user.email
     return render(request, 'user.html', {'email': email})
+    
+    
+    
+    
+    
+@csrf_exempt
+def login_or_signup(request):
+    if request.method == 'POST':
+        data = json.loads(request.body)
+        email = data.get('email')
+
+        if not email:
+            return JsonResponse({'error': 'Email is required.'}, status=400)
+
+        user, created = User.objects.get_or_create(email=email, username=email)
+
+        # Generate a 6-digit verification code
+        code = ''.join(random.choices(string.digits, k=6))
+
+        # Save the code
+        VerificationCode.objects.create(user=user, code=code)
+
+        # Send email with the code (using console backend for development)
+        send_mail(
+            'Your Verification Code',
+            f'Your verification code is: {code}',
+            'noreply@example.com',
+            [email],
+            fail_silently=False,
+        )
+
+        return JsonResponse({'message': 'Verification code sent to your email.'}, status=200)
+    else:
+        return JsonResponse({'error': 'Invalid request method.'}, status=405)
+
+@csrf_exempt
+def verify_code(request):
+    if request.method == 'POST':
+        data = json.loads(request.body)
+        email = data.get('email')
+        code = data.get('code')
+
+        if not email or not code:
+            return JsonResponse({'error': 'Email and code are required.'}, status=400)
+
+        try:
+            user = User.objects.get(email=email)
+        except User.DoesNotExist:
+            return JsonResponse({'error': 'Invalid email.'}, status=400)
+
+        # Check if code is valid and not expired (10-minute validity)
+        now = timezone.now()
+        code_validity_period = now - timedelta(minutes=10)
+
+        try:
+            verification_code = VerificationCode.objects.filter(
+                user=user,
+                code=code,
+                is_used=False,
+                created_at__gte=code_validity_period
+            ).latest('created_at')
+        except VerificationCode.DoesNotExist:
+            return JsonResponse({'error': 'Invalid or expired code.'}, status=400)
+
+        # Mark code as used
+        verification_code.is_used = True
+        verification_code.save()
+
+        return JsonResponse({'user_id': user.id}, status=200)
+    else:
+        return JsonResponse({'error': 'Invalid request method.'}, status=405)

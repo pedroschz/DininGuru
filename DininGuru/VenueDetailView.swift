@@ -12,8 +12,9 @@ import WebKit
 struct VenueDetailView: View {
    let venue: Venue
    let venueURL: String?
-   let userId: String = "1" // Replace with actual user ID logic
-   
+   @AppStorage("userId") var userId: Int?
+
+
    @State private var image: UIImage? = nil
    @State private var isLoadingImage = false
    
@@ -37,6 +38,7 @@ struct VenueDetailView: View {
    
    
    var body: some View {
+      
       ScrollView {
          VStack {
             VenueImage(image: image)
@@ -54,6 +56,7 @@ struct VenueDetailView: View {
       .navigationTitle(venue.name)
       .navigationBarTitleDisplayMode(.inline)
       .onAppear {
+         print("VenueDetailView appeared. UserId is: \(String(describing: userId))")
          loadImage()
          fetchAverageRating()
          fetchComments(venueId: String(venue.id)) { fetchedComments in
@@ -91,12 +94,26 @@ struct VenueDetailView: View {
    
    // MARK: - Rating Functions
    
-    func submitUserRating() {
-       let mealPeriod = getCurrentMealPeriod()
+
+   func submitUserRating() {
+      let mealPeriod = getCurrentMealPeriod()
+      
+      print("Attempting to submit rating. UserId is: \(String(describing: userId))")
+      
+      guard let userId = userId else {
+         print("User ID is nil. Cannot submit rating.")
+         // Handle the case where userId is nil (user not logged in)
+         showErrorMessage = true
+         alertMessage = "Please log in to submit a rating."
+         return
+      }
+      
+      print("User ID unwrapped: \(userId)")
+       
        RatingService.shared.submitRating(
          venueId: String(venue.id),
          rating: selectedRating.rawValue,
-         userId: userId,
+         userId: String(userId),
          mealPeriod: mealPeriod
        ) { success in
          DispatchQueue.main.async {
@@ -181,7 +198,15 @@ struct VenueDetailView: View {
       
       isSubmittingComment = true
       
-      CommentService.shared.submitOrUpdateComment(venueId: String(venue.id), userId: userId, text: trimmedComment) { success in
+       guard let userId = userId else {
+          // Handle the case where userId is nil (user not logged in)
+          // For example, show an alert or navigate to the login screen
+          showErrorMessage = true
+          alertMessage = "Please log in to submit a rating."
+          return
+       }
+       
+      CommentService.shared.submitOrUpdateComment(venueId: String(venue.id), userId: String(userId), text: trimmedComment) { success in
          DispatchQueue.main.async {
             isSubmittingComment = false
             if success {
@@ -200,7 +225,14 @@ struct VenueDetailView: View {
    }
    
     func likeComment(_ comment: Comment) {
-      CommentService.shared.likeComment(commentId: String(comment.id), userId: userId) { success in
+       guard let userId = userId else {
+          // Handle the case where userId is nil (user not logged in)
+          // For example, show an alert or navigate to the login screen
+          showErrorMessage = true
+          alertMessage = "Please log in to submit a rating."
+          return
+       }
+      CommentService.shared.likeComment(commentId: String(comment.id), userId: String(userId)) { success in
          if success {
             DispatchQueue.main.async {
                // Update the local like count and like state
