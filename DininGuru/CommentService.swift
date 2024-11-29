@@ -104,10 +104,11 @@ class CommentService {
    
    // Like a comment
    func likeComment(commentId: String, userId: String, completion: @escaping (Bool) -> Void) {
-      guard let url = URL(string: "http://127.0.0.1:8000/api/comments/\(commentId)/like") else {
+      guard let url = URL(string: "http://127.0.0.1:8000/api/comments/\(commentId)/like/") else {
          completion(false)
          return
       }
+
       
       var request = URLRequest(url: url)
       request.httpMethod = "POST"
@@ -129,6 +130,37 @@ class CommentService {
             completion(true)
          } else {
             print("Failed to like comment. Status Code: \((response as? HTTPURLResponse)?.statusCode ?? 0)")
+            completion(false)
+         }
+      }.resume()
+   }
+   
+   func unlikeComment(commentId: String, userId: String, completion: @escaping (Bool) -> Void) {
+      guard let url = URL(string: "http://127.0.0.1:8000/api/comments/\(commentId)/unlike/") else {
+         completion(false)
+         return
+      }
+      
+      var request = URLRequest(url: url)
+      request.httpMethod = "POST"
+      request.addValue("application/json", forHTTPHeaderField: "Content-Type")
+      
+      let body: [String: Any] = [
+         "user_id": Int(userId) ?? 0
+      ]
+      
+      request.httpBody = try? JSONSerialization.data(withJSONObject: body, options: [])
+      
+      URLSession.shared.dataTask(with: request) { _, response, error in
+         if let error = error {
+            print("Error unliking comment: \(error)")
+            completion(false)
+            return
+         }
+         if let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 {
+            completion(true)
+         } else {
+            print("Failed to unlike comment. Status Code: \((response as? HTTPURLResponse)?.statusCode ?? 0)")
             completion(false)
          }
       }.resume()

@@ -7,6 +7,8 @@ from django.contrib.auth.models import User
 from .models import Rating, Comment
 from django.db.models import Avg
 import json
+from django.views.decorators.http import require_POST
+
 
 @csrf_exempt
 def submit_rating(request):
@@ -136,3 +138,36 @@ def like_comment(request, comment_id):
             return JsonResponse({"error": "Comment not found."}, status=404)
         except Exception as e:
             return JsonResponse({"error": str(e)}, status=500)
+
+
+
+@csrf_exempt
+@require_POST
+def unlike_comment(request, comment_id):
+    """
+    Unlike a specific comment.
+    """
+    try:
+        data = json.loads(request.body)
+        user_id = data.get("user_id")
+
+        if not user_id:
+            return JsonResponse({"error": "Missing user_id."}, status=400)
+
+        user = User.objects.get(id=user_id)
+        comment = Comment.objects.get(id=comment_id)
+
+        if not comment.likes.filter(id=user.id).exists():
+            return JsonResponse({"message": "You have not liked this comment."}, status=400)
+
+        comment.likes.remove(user)
+        return JsonResponse({"message": "Comment unliked successfully.", "like_count": comment.like_count}, status=200)
+
+    except User.DoesNotExist:
+        return JsonResponse({"error": "User not found."}, status=404)
+    except Comment.DoesNotExist:
+        return JsonResponse({"error": "Comment not found."}, status=404)
+    except json.JSONDecodeError:
+        return JsonResponse({"error": "Invalid JSON."}, status=400)
+    except Exception as e:
+        return JsonResponse({"error": str(e)}, status=500)

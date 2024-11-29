@@ -6,7 +6,8 @@ from .views import (
     average_rating,
     fetch_comments,
     submit_or_update_comment,
-    like_comment
+    like_comment,
+    unlike_comment
 )
 
 
@@ -18,5 +19,7 @@ urlpatterns = [
     # Comments URLs
     path('comments/<int:venue_id>', fetch_comments, name='fetch_comments'),  # GET /api/comments/<venue_id>
     path('comments', submit_or_update_comment, name='submit_or_update_comment'),  # POST /api/comments
-    path('comments/<int:comment_id>/like', like_comment, name='like_comment'),  # POST /api/comments/<comment_id>/like
+    path('comments/<int:comment_id>/like/', like_comment, name='like_comment'),
+    path('comments/<int:comment_id>/unlike/', unlike_comment, name='unlike_comment'),
+
 ]

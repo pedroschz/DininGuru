@@ -49,7 +49,7 @@ struct VenueDetailView: View {
                newCommentText: $newCommentText,
                isSubmittingComment: isSubmittingComment,
                submitOrUpdateComment: submitOrUpdateComment,
-               likeComment: likeComment,
+               toggleLikeComment: toggleLikeComment,
                mealPeriod: getCurrentMealPeriod() // Pass mealPeriod here
             )
             WebsiteButton(showAlert: $showAlert, alertMessage: alertMessage, handleVisitWebsite: handleVisitWebsite)
@@ -285,7 +285,7 @@ struct VenueDetailView: View {
    
    
    
-   
+   /*
     func likeComment(_ comment: Comment) {
        guard let userId = userId else {
           // Handle the case where userId is nil (user not logged in)
@@ -313,7 +313,60 @@ struct VenueDetailView: View {
              }
           }
        }
+   }*/
+   
+   func toggleLikeComment(_ comment: Comment) {
+      guard let userId = userId else {
+         // Handle the case where userId is nil (user not logged in)
+         showErrorMessage = true
+         alertMessage = "Please log in to like or unlike comments."
+         showAlert = true
+         return
+      }
+      
+      if comment.has_liked {
+         // Unlike the comment
+         CommentService.shared.unlikeComment(
+            commentId: String(comment.id),
+            userId: String(userId)
+         ) { success in
+            if success {
+               DispatchQueue.main.async {
+                  if let index = comments.firstIndex(where: { $0.id == comment.id }) {
+                     comments[index].like_count -= 1
+                     comments[index].has_liked = false
+                  }
+               }
+            } else {
+               DispatchQueue.main.async {
+                  alertMessage = "Failed to unlike the comment. Please try again."
+                  showAlert = true
+               }
+            }
+         }
+      } else {
+         // Like the comment
+         CommentService.shared.likeComment(
+            commentId: String(comment.id),
+            userId: String(userId)
+         ) { success in
+            if success {
+               DispatchQueue.main.async {
+                  if let index = comments.firstIndex(where: { $0.id == comment.id }) {
+                     comments[index].like_count += 1
+                     comments[index].has_liked = true
+                  }
+               }
+            } else {
+               DispatchQueue.main.async {
+                  alertMessage = "Failed to like the comment. Please try again."
+                  showAlert = true
+               }
+            }
+         }
+      }
    }
+   
    
    // MARK: - Image Loading
    
@@ -462,7 +515,7 @@ struct CommentsSection: View {
    @Binding var newCommentText: String
    let isSubmittingComment: Bool
    let submitOrUpdateComment: () -> Void
-   let likeComment: (Comment) -> Void
+   let toggleLikeComment: (Comment) -> Void // Updated parameter
    let mealPeriod: String // Add mealPeriod as a property
    
    var body: some View {
@@ -476,7 +529,7 @@ struct CommentsSection: View {
                .padding(.vertical, 8)
          } else {
             ForEach(comments) { comment in
-               CommentView(comment: comment, likeComment: likeComment)
+               CommentView(comment: comment, toggleLikeComment: toggleLikeComment) // Pass the toggle function
             }
          }
          
@@ -511,10 +564,7 @@ struct CommentsSection: View {
       }
       .padding(.horizontal)
    }
-   
 }
-
-
 
 
 struct WebsiteButton: View {
@@ -541,7 +591,7 @@ struct WebsiteButton: View {
 
 struct CommentView: View {
    let comment: Comment
-   let likeComment: (Comment) -> Void
+   let toggleLikeComment: (Comment) -> Void // Updated parameter
    
    var body: some View {
       HStack(alignment: .top) {
@@ -556,7 +606,7 @@ struct CommentView: View {
                .font(.subheadline)
                .foregroundColor(.gray)
             
-            Button(action: { likeComment(comment) }) {
+            Button(action: { toggleLikeComment(comment) }) { // Use toggle function
                Image(systemName: comment.has_liked ? "hand.thumbsup.fill" : "hand.thumbsup")
                   .foregroundColor(comment.has_liked ? .blue : .gray)
             }
@@ -566,6 +616,7 @@ struct CommentView: View {
       .padding(.vertical, 4)
    }
 }
+
 
 
 struct RatingView: View {
