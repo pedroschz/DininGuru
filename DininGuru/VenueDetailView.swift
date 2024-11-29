@@ -8,9 +8,11 @@
 import SwiftUI
 import WebKit
 
+
 struct VenueDetailView: View {
    let venue: Venue
    let venueURL: String?
+   let userId: String = "1" // Replace with actual user ID logic
    
    @State private var image: UIImage? = nil
    @State private var isLoadingImage = false
@@ -33,8 +35,6 @@ struct VenueDetailView: View {
    @State private var newCommentText: String = ""
    @State private var isSubmittingComment = false
    
-   // Assuming userId is available; replace with actual user management
-   let userId: String = "1" // Replace with actual user ID logic
    
    var body: some View {
       ScrollView {
@@ -56,7 +56,11 @@ struct VenueDetailView: View {
       .onAppear {
          loadImage()
          fetchAverageRating()
-         fetchComments()
+         fetchComments(venueId: String(venue.id)) { fetchedComments in
+            DispatchQueue.main.async {
+               self.comments = fetchedComments
+            }
+         }
       }
       .alert(isPresented: $showSuccessMessage) {
          Alert(
@@ -87,8 +91,14 @@ struct VenueDetailView: View {
    
    // MARK: - Rating Functions
    
-   private func submitUserRating() {
-      RatingService.shared.submitRating(venueId: String(venue.id), rating: selectedRating) { success in
+    func submitUserRating() {
+       let mealPeriod = getCurrentMealPeriod()
+       RatingService.shared.submitRating(
+         venueId: String(venue.id),
+         rating: selectedRating.rawValue,
+         userId: userId,
+         mealPeriod: mealPeriod
+       ) { success in
          DispatchQueue.main.async {
             if success {
                showSuccessMessage = true
@@ -100,25 +110,72 @@ struct VenueDetailView: View {
       }
    }
    
-   private func fetchAverageRating() {
-      RatingService.shared.fetchAverageRating(venueId: String(venue.id)) { avgRating in
+    func fetchAverageRating() {
+       RatingService.shared.fetchAverageRating(venueId: String(venue.id)) { avgRating in
          DispatchQueue.main.async {
             self.averageRating = avgRating
          }
       }
    }
+
    
    // MARK: - Comment Functions
    
-   private func fetchComments() {
-      CommentService.shared.fetchComments(venueId: String(venue.id)) { fetchedComments in
-         DispatchQueue.main.async {
-            self.comments = fetchedComments
-         }
+   func fetchComments(venueId: String, completion: @escaping ([Comment]) -> Void) {
+      let mealPeriod = getCurrentMealPeriod()
+      let userId = "1" // Replace with actual user ID logic
+      
+      var urlComponents = URLComponents(string: "http://127.0.0.1:8000/api/comments/\(venueId)")!
+      urlComponents.queryItems = [
+         URLQueryItem(name: "meal_period", value: mealPeriod),
+         URLQueryItem(name: "user_id", value: userId)
+      ]
+      
+      guard let url = urlComponents.url else {
+         completion([])
+         return
       }
+      
+      URLSession.shared.dataTask(with: url) { data, response, error in
+         if let error = error {
+            print("Error fetching comments: \(error)")
+            completion([])
+            return
+         }
+         guard let data = data else {
+            print("No data received while fetching comments.")
+            completion([])
+            return
+         }
+         do {
+            let fetchResponse = try JSONDecoder().decode(FetchCommentsResponse.self, from: data)
+            completion(fetchResponse.comments)
+         } catch {
+            print("Error decoding comments: \(error)")
+            completion([])
+         }
+      }.resume()
    }
    
-   private func submitOrUpdateComment() {
+   func getCurrentMealPeriod() -> String {
+      let now = Date()
+      let calendar = Calendar.current
+      let hour = calendar.component(.hour, from: now)
+      
+      switch hour {
+      case 6..<11:
+         return "breakfast"
+      case 11..<17:
+         return "lunch"
+      case 17..<22:
+         return "dinner"
+      default:
+         return "closed"
+      }
+   }
+
+   
+    func submitOrUpdateComment() {
       let trimmedComment = newCommentText.trimmingCharacters(in: .whitespacesAndNewlines)
       guard !trimmedComment.isEmpty else { return }
       
@@ -129,7 +186,11 @@ struct VenueDetailView: View {
             isSubmittingComment = false
             if success {
                newCommentText = ""
-               fetchComments()
+               fetchComments(venueId: String(venue.id)) { fetchedComments in
+                  DispatchQueue.main.async {
+                     self.comments = fetchedComments
+                  }
+               }
             } else {
                alertMessage = "Failed to submit comment. Please try again later."
                showAlert = true
@@ -138,7 +199,7 @@ struct VenueDetailView: View {
       }
    }
    
-   private func likeComment(_ comment: Comment) {
+    func likeComment(_ comment: Comment) {
       CommentService.shared.likeComment(commentId: String(comment.id), userId: userId) { success in
          if success {
             DispatchQueue.main.async {
@@ -210,7 +271,7 @@ struct VenueDetailView: View {
 }
 
 // Extension to make URL conform to Identifiable
-extension URL: Identifiable {
+extension URL: @retroactive Identifiable {
    public var id: String { absoluteString }
 }
 

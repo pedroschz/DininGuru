@@ -15,11 +15,15 @@ def submit_rating(request):
         venue_id = data.get("venue_id")
         user_id = data.get("user_id")
         rating = data.get("rating")
+        meal_period = data.get("meal_period")
+        
+        if not all([venue_id, user_id, rating, meal_period]):
+            return JsonResponse({"error": "Missing required fields."}, status=400)
         
         try:
             user = User.objects.get(id=user_id)
             rating_obj, created = Rating.objects.update_or_create(
-                venue_id=venue_id, user=user,
+                venue_id=venue_id, user=user, meal_period=meal_period,
                 defaults={'rating': rating}
             )
             return JsonResponse({"message": "Rating submitted successfully"}, status=201)
@@ -29,30 +33,32 @@ def submit_rating(request):
             return JsonResponse({"error": str(e)}, status=500)
 
 
+
 from django.db.models import Avg
 
 def average_rating(request, venue_id):
     if request.method == "GET":
-        ratings = Rating.objects.filter(venue_id=venue_id)
-        if ratings.exists():
-            average = ratings.aggregate(Avg('rating'))['rating__avg']
-            return JsonResponse({"averageRating": average}, status=200)
-        else:
-            return JsonResponse({"averageRating": 0.0}, status=200)
+        meal_period = request.GET.get('meal_period')
+        if not meal_period:
+            return JsonResponse({"error": "Missing meal_period."}, status=400)
+        ratings = Rating.objects.filter(venue_id=venue_id, meal_period=meal_period)
+        average = ratings.aggregate(Avg('rating'))['rating__avg'] or 0.0
+        return JsonResponse({"averageRating": average}, status=200)
 
-@csrf_exempt
+
 def fetch_comments(request, venue_id):
-    """
-    Fetch all comments for a specific venue.
-    """
     if request.method == "GET":
-        user_id = request.GET.get('user_id')  # Optional: to determine if the user has liked each comment
+        user_id = request.GET.get('user_id')
+        meal_period = request.GET.get('meal_period')
+        if not meal_period:
+            return JsonResponse({"error": "Missing meal_period."}, status=400)
+        
         try:
             user = User.objects.get(id=user_id) if user_id else None
         except User.DoesNotExist:
             user = None
 
-        comments = Comment.objects.filter(venue_id=venue_id).order_by('-created_at')
+        comments = Comment.objects.filter(venue_id=venue_id, meal_period=meal_period).order_by('-created_at')
         comments_data = []
         for comment in comments:
             has_liked = comment.has_liked(user) if user else False
@@ -68,24 +74,23 @@ def fetch_comments(request, venue_id):
             })
         return JsonResponse({"comments": comments_data}, status=200)
 
+
 @csrf_exempt
 def submit_or_update_comment(request):
-    """
-    Submit a new comment or update an existing comment for a user and venue.
-    """
     if request.method == "POST":
         data = json.loads(request.body)
         venue_id = data.get("venue_id")
         user_id = data.get("user_id")
         text = data.get("text")
+        meal_period = data.get("meal_period")
         
-        if not all([venue_id, user_id, text]):
+        if not all([venue_id, user_id, text, meal_period]):
             return JsonResponse({"error": "Missing required fields."}, status=400)
         
         try:
             user = User.objects.get(id=user_id)
             comment, created = Comment.objects.update_or_create(
-                venue_id=venue_id, user=user,
+                venue_id=venue_id, user=user, meal_period=meal_period,
                 defaults={'text': text}
             )
             return JsonResponse({
@@ -104,6 +109,7 @@ def submit_or_update_comment(request):
             return JsonResponse({"error": "User not found."}, status=404)
         except Exception as e:
             return JsonResponse({"error": str(e)}, status=500)
+
 
 @csrf_exempt
 def like_comment(request, comment_id):

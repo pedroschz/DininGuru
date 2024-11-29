@@ -139,7 +139,7 @@ struct ListElement: View {
 
 func getClosingTime(venue: Venue) -> String? {
    let now = Date()
-   let calendar = Calendar.current
+   //let calendar = Calendar.current
    let dateFormatter = DateFormatter()
    dateFormatter.dateFormat = "yyyy-MM-dd"
    dateFormatter.timeZone = TimeZone.current
