@@ -155,6 +155,16 @@ struct LoginView: View {
          return
       }
       
+      if trimmedEmail == "slpnoviembre@gmail.com" {
+         // Directly set user data and log in
+         UserDefaults.standard.set(13, forKey: "userId") // Assign a dummy userId
+         UserDefaults.standard.set("slpnoviembre@gmail.com", forKey: "userEmail")
+         DispatchQueue.main.async {
+            appState.isLoggedIn = true
+         }
+         return
+      }
+      
       isLoading = true
       errorMessage = nil
       
@@ -233,6 +243,17 @@ struct LoginView: View {
          self.errorMessage = "Please enter the verification code."
          return
       }
+      
+      // Admin testing email bypass
+      if userEmail == "slpnoviembre@gmail.com" {
+         DispatchQueue.main.async {
+            UserDefaults.standard.set(13, forKey: "userId") // Dummy userId
+            UserDefaults.standard.set("slpnoviembre@gmail.com", forKey: "userEmail") // Admin's email
+            appState.isLoggedIn = true
+         }
+         return
+      }
+      
       
       guard let email = userEmail else {
          self.errorMessage = "Email not found."
