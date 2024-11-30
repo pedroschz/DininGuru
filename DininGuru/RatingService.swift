@@ -12,7 +12,7 @@ class RatingService {
    private init() {}
 
    
-   func submitRating(venueId: String, rating: Int, userId: String, mealPeriod: String, completion: @escaping (Bool) -> Void) {
+   func submitRating(venueId: String, rating: Double, userId: String, mealPeriod: String, completion: @escaping (Bool) -> Void) {
       guard let url = URL(string: "http://127.0.0.1:8000/api/ratings") else {
          completion(false)
          return
@@ -51,7 +51,7 @@ class RatingService {
          completion(false)
       }
    }
-
+   
    func fetchAverageRating(venueId: String, completion: @escaping (Double?) -> Void) {
       
       func getCurrentMealPeriod() -> String {
@@ -73,7 +73,7 @@ class RatingService {
       
       let mealPeriod = getCurrentMealPeriod()
       
-      guard let url = URL(string: "http://127.0.0.1:8000/api/ratings/\(venueId)/average?meal_period=\(mealPeriod)") else { //or     guard let url = URL(string: "http://127.0.0.1:8000/ratings/\(venueId)/average?meal_period=\(mealPeriod)") else {
+      guard let url = URL(string: "http://127.0.0.1:8000/api/ratings/\(venueId)/average?meal_period=\(mealPeriod)") else {
          
          completion(nil)
          return
@@ -94,15 +94,6 @@ class RatingService {
    }
    
    
-   private func ratingToValue(_ rating: VenueRating) -> Double {
-      switch rating {
-      case .wayWorse: return -1.0
-      case .worse: return -0.5
-      case .neutral: return 0.0
-      case .better: return 0.5
-      case .wayBetter: return 1.0
-      }
-   }
 }
 
 struct AverageRatingResponse: Codable {

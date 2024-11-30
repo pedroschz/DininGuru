@@ -1,38 +1,62 @@
 # ratings/views.py
 
 from django.shortcuts import render
+from django.views.decorators.http import require_POST
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.contrib.auth.models import User
 from .models import Rating, Comment
 from django.db.models import Avg
 import json
-from django.views.decorators.http import require_POST
+import logging
+from django.core.exceptions import ValidationError
 
+
+logger = logging.getLogger(__name__)
 
 @csrf_exempt
+@require_POST
 def submit_rating(request):
-    if request.method == "POST":
+    try:
         data = json.loads(request.body)
         venue_id = data.get("venue_id")
         user_id = data.get("user_id")
         rating = data.get("rating")
         meal_period = data.get("meal_period")
         
-        if not all([venue_id, user_id, rating, meal_period]):
-            return JsonResponse({"error": "Missing required fields."}, status=400)
+        # Log the received data
+        logger.debug(f"Received rating submission: venue_id={venue_id}, user_id={user_id}, rating={rating}, meal_period={meal_period}")
         
-        try:
-            user = User.objects.get(id=user_id)
-            rating_obj, created = Rating.objects.update_or_create(
-                venue_id=venue_id, user=user, meal_period=meal_period,
-                defaults={'rating': rating}
-            )
-            return JsonResponse({"message": "Rating submitted successfully"}, status=201)
-        except User.DoesNotExist:
-            return JsonResponse({"error": "User not found"}, status=404)
-        except Exception as e:
-            return JsonResponse({"error": str(e)}, status=500)
+        # Explicitly convert rating to float
+        rating = float(rating)
+    except (ValueError, TypeError) as e:
+        logger.error(f"Invalid rating value: {e}")
+        return JsonResponse({"error": "Invalid rating value."}, status=400)
+    
+    # Check for missing fields (allow 0.0)
+    if venue_id is None or user_id is None or meal_period is None:
+        logger.error("Missing required fields.")
+        return JsonResponse({"error": "Missing required fields."}, status=400)
+    
+    try:
+        user = User.objects.get(id=user_id)
+        rating_obj, created = Rating.objects.update_or_create(
+            venue_id=venue_id, user=user, meal_period=meal_period,
+            defaults={'rating': rating}
+        )
+        logger.info(f"Rating submitted successfully by user {user_id} for venue {venue_id}.")
+        return JsonResponse({"message": "Rating submitted successfully"}, status=201)
+    except User.DoesNotExist:
+        logger.error("User not found.")
+        return JsonResponse({"error": "User not found"}, status=404)
+    except ValidationError as ve:
+        logger.error(f"Validation error: {ve}")
+        return JsonResponse({"error": str(ve)}, status=400)
+    except Exception as e:
+        logger.exception(f"Unexpected error: {e}")
+        return JsonResponse({"error": str(e)}, status=500)
+
+
 
 
 

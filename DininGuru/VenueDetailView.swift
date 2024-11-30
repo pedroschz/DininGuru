@@ -116,13 +116,13 @@ struct VenueDetailView: View {
       }
       
       print("User ID unwrapped: \(userId)")
-       
-       RatingService.shared.submitRating(
+      
+      RatingService.shared.submitRating(
          venueId: String(venue.id),
-         rating: selectedRating.rawValue,
+         rating: selectedRating.value, // Use the computed Double value
          userId: String(userId),
          mealPeriod: mealPeriod
-       ) { success in
+      ) { success in
          DispatchQueue.main.async {
             if success {
                showSuccessMessage = true
@@ -240,80 +240,7 @@ struct VenueDetailView: View {
       }
    }
    
-   
-   /* private func submitOrUpdateCommentAction() {
-      let trimmedComment = newCommentText.trimmingCharacters(in: .whitespacesAndNewlines)
-      guard !trimmedComment.isEmpty else { return }
-      
-      isSubmittingComment = true
-      
-      // Assuming userId is available in this view
-      guard let userId = userId else {
-         // Handle the case where userId is nil (user not logged in)
-         // For example, show an alert or navigate to the login screen
-         showErrorMessage = true
-         alertMessage = "Please log in to submit a rating."
-         return
-      }
-      
-      CommentService.shared.submitOrUpdateComment(
-         venueId: String(venue.id),
-         userId: String(userId),
-         text: trimmedComment,
-         mealPeriod: getCurrentMealPeriod()
-      ) { success in
-         DispatchQueue.main.async {
-            isSubmittingComment = false
-            if success {
-               newCommentText = ""
-               fetchComments(
-                  venueId: String(venue.id),
-                  mealPeriod: getCurrentMealPeriod(),
-                  userId: String(userId)
-               ) { fetchedComments in
-                  DispatchQueue.main.async {
-                     self.comments = fetchedComments
-                  }
-               }
-            } else {
-               alertMessage = "Failed to submit comment. Please try again later."
-               showAlert = true
-            }
-         }
-      }
-   }*/
-   
-   
-   
-   /*
-    func likeComment(_ comment: Comment) {
-       guard let userId = userId else {
-          // Handle the case where userId is nil (user not logged in)
-          // For example, show an alert or navigate to the login screen
-          showErrorMessage = true
-          alertMessage = "Please log in to submit a rating."
-          return
-       }
-       CommentService.shared.likeComment(
-         commentId: String(comment.id),
-         userId: String(userId)
-       ) { success in
-          if success {
-             DispatchQueue.main.async {
-                // Update the local like count and like state
-                if let index = comments.firstIndex(where: { $0.id == comment.id }) {
-                   comments[index].like_count += 1
-                   comments[index].has_liked = true
-                }
-             }
-          } else {
-             DispatchQueue.main.async {
-                alertMessage = "Failed to like the comment. Please try again."
-                showAlert = true
-             }
-          }
-       }
-   }*/
+
    
    func toggleLikeComment(_ comment: Comment) {
       guard let userId = userId else {
@@ -434,6 +361,22 @@ enum VenueRating: Int, CaseIterable, Identifiable {
    case wayBetter
    
    var id: Int { rawValue }
+   
+   // **Add this computed property**
+   var value: Double {
+      switch self {
+      case .wayWorse:
+         return -1.0
+      case .worse:
+         return -0.5
+      case .neutral:
+         return 0.0
+      case .better:
+         return 0.5
+      case .wayBetter:
+         return 1.0
+      }
+   }
 }
 
 // RadioButton View
