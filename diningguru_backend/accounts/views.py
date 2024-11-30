@@ -87,11 +87,24 @@ def login_or_signup(request):
 
         # Send email with the code (using console backend for development)
         send_mail(
-            'Your Verification Code',
-            f'Your verification code is: {code}',
+            'DininGuru verification code',  # Updated subject
+            '',  # Plain text version (can be left empty if not needed)
             'noreply@example.com',
             [email],
             fail_silently=False,
+            html_message=f"""
+                <html>
+                    <body style="font-family: Arial, sans-serif; line-height: 1.6;">
+                        <p style="color: #333;">Yoo, this is Chinmay from DininGuru.</p>
+                        <p>Here's your code:</p>
+                        <div style="font-size: 24px; font-weight: bold; color: #4CAF50; margin: 20px 0;">
+                            {code}
+                        </div>
+                        <p>Welcome to DininGuru!</p>
+                        <p style="color: #888;">If you did not request this code, please ignore this email.</p>
+                    </body>
+                </html>
+            """
         )
 
         return JsonResponse({'message': 'Verification code sent to your email.'}, status=200)

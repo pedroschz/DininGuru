@@ -38,7 +38,7 @@ struct Main: View {
    @State private var reviewCount: [Int: Int] = [:]
    
    private var timer: Publishers.Autoconnect<Timer.TimerPublisher> {
-      Timer.publish(every: 1.0, on: .main, in: .common).autoconnect()
+      Timer.publish(every: 2.0, on: .main, in: .common).autoconnect()
    }
    
    let diningHallIDs: Set<Int> = [593, 636, 637, 1442, 1464004]

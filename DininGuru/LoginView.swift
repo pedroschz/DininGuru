@@ -57,12 +57,16 @@ struct LoginView: View {
             
             Spacer()
             
+            Text("Login or Signup")
+               .font(.headline)
+               .foregroundColor(.white.opacity(0.8))
+            
             // Input Fields
             VStack(spacing: 15) {
                if !isVerificationSent {
                   CustomTextField(placeholder: "Enter your email", text: $username, icon: "envelope")
                } else {
-                  Text("A verification code has been sent to your email.")
+                  Text("Check your inbox! we sent your code to \(userEmail ?? ""). check spam folder :)")
                      .font(.subheadline)
                      .foregroundColor(.white.opacity(0.9))
                      .multilineTextAlignment(.center)
