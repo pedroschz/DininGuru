@@ -8,6 +8,8 @@
 import SwiftUI
 
 
+
+
 class AppState: ObservableObject {
    @Published var isLoggedIn: Bool = false
    @Published var isLoggedOut: Bool = false
@@ -31,58 +33,103 @@ struct LoginView: View {
    @EnvironmentObject var appState: AppState
    
    var body: some View {
-      VStack(spacing: 20) {
-         Text("Welcome to DiningGuru")
-            .font(.largeTitle)
-            .padding(.top, 40)
+      ZStack {
+         LinearGradient(
+            gradient: Gradient(colors: [Color.orange.opacity(0.6), Color.red.opacity(0.9)]),
+            startPoint: .topLeading,
+            endPoint: .bottomTrailing
+         )
+         .ignoresSafeArea()
          
-         if !isVerificationSent {
-            TextField("Enter your email", text: $username)
-               .textFieldStyle(RoundedBorderTextFieldStyle())
-               .padding(.horizontal)
-               .disableAutocorrection(true)
-               .autocapitalization(.none)
-         } else {
-            Text("A verification code has been sent to your email.")
-               .padding(.horizontal)
+         VStack(spacing: 20) {
+            Spacer()
             
-            TextField("Enter verification code", text: $code)
-               .textFieldStyle(RoundedBorderTextFieldStyle())
-               .padding(.horizontal)
-               .keyboardType(.numberPad)
-         }
-         
-         if let errorMessage = errorMessage {
-            Text(errorMessage)
-               .foregroundColor(.red)
-               .padding(.horizontal)
-         }
-         
-         Button(action: {
-            if isVerificationSent {
-               verifyCode()
-            } else {
-               sendVerificationCode()
-            }
-         }) {
-            if isLoading {
-               ProgressView()
-            } else {
-               Text(isVerificationSent ? "Verify Code" : "Send Verification Code")
+            // Header
+            VStack(spacing: 10) {
+               Text("Welcome to")
+                  .font(.headline)
+                  .foregroundColor(.white.opacity(0.8))
+               
+               Text("DiningGuru")
+                  .font(.largeTitle.bold())
                   .foregroundColor(.white)
-                  .padding()
-                  .frame(maxWidth: .infinity)
-                  .background(Color.blue)
-                  .cornerRadius(8)
             }
+            
+            Spacer()
+            
+            // Input Fields
+            VStack(spacing: 15) {
+               if !isVerificationSent {
+                  CustomTextField(placeholder: "Enter your email", text: $username, icon: "envelope")
+               } else {
+                  Text("A verification code has been sent to your email.")
+                     .font(.subheadline)
+                     .foregroundColor(.white.opacity(0.9))
+                     .multilineTextAlignment(.center)
+                     .padding(.horizontal)
+                  
+                  CustomTextField(placeholder: "Enter verification code", text: $code, icon: "lock")
+               }
+            }
+            .padding(.horizontal)
+            
+            // Error Message
+            if let errorMessage = errorMessage {
+               Text(errorMessage)
+                  .foregroundColor(.red)
+                  .padding(.horizontal)
+                  .transition(.opacity)
+            }
+            
+            // Action Button
+            Button(action: {
+               if isVerificationSent {
+                  verifyCode()
+               } else {
+                  sendVerificationCode()
+               }
+            }) {
+               Text(isVerificationSent ? "Verify Code" : "Send Verification Code")
+                  .fontWeight(.bold)
+                  .frame(maxWidth: .infinity)
+                  .padding()
+                  .background(
+                     ZStack {
+                        // Background blur effect
+                        VisualEffectBlur(blurStyle: .systemUltraThinMaterial)
+                           .clipShape(RoundedRectangle(cornerRadius: 20))
+                        
+                     }
+                  )
+                  .foregroundColor(.white)
+                  .cornerRadius(20)
+                  .shadow(color: Color.black.opacity(0.08), radius: 4, x: 0, y: 2)
+            }
+            .disabled((isVerificationSent ? code : username).trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isLoading)
+            .padding(.horizontal)
+            .animation(.easeInOut(duration: 0.2), value: isLoading)
+            
+            Spacer()
+
+            
+            Text("- Real-time dining hall ratings by meal")
+               .font(.headline)
+               .foregroundColor(.white.opacity(1))
+            Text("- Comments on today's menu")
+               .font(.headline)
+               .foregroundColor(.white.opacity(1))
+            Text("- Quick access to menu and dining hours")
+               .font(.headline)
+               .foregroundColor(.white.opacity(1))
+
+            
+            Spacer()
+            Spacer()
+
          }
-         .disabled((isVerificationSent ? code : username).trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isLoading)
-         .padding(.horizontal)
-         
-         Spacer()
+         .padding()
       }
       .onAppear {
-         // Reset state when the view appears
          if appState.isLoggedOut {
             resetLoginState()
             appState.isLoggedOut = false
@@ -268,7 +315,47 @@ struct LoginView: View {
    }
 }
 
+struct VisualEffectBlur: UIViewRepresentable {
+   var blurStyle: UIBlurEffect.Style
+   
+   func makeUIView(context: Context) -> UIVisualEffectView {
+      return UIVisualEffectView(effect: UIBlurEffect(style: blurStyle))
+   }
+   
+   func updateUIView(_ uiView: UIVisualEffectView, context: Context) {}
+}
+
+struct CustomTextField: View {
+   let placeholder: String
+   @Binding var text: String
+   let icon: String
+   
+   var body: some View {
+      HStack {
+         Image(systemName: icon)
+            .foregroundColor(.white.opacity(0.8))
+         
+         ZStack(alignment: .leading) {
+            if text.isEmpty {
+               Text(placeholder)
+                  .foregroundColor(.white.opacity(0.6)) // White placeholder
+            }
+            TextField("", text: $text)
+               .foregroundColor(.white) // Ensure the typed text is white
+               .autocapitalization(.none)
+               .disableAutocorrection(true)
+         }
+      }
+      .padding()
+      .background(Color.white.opacity(0.2))
+      .cornerRadius(20)
+      .shadow(color: Color.black.opacity(0.2), radius: 4, x: 0, y: 2)
+   }
+}
+
 
 #Preview {
+   let appState = AppState() // Create an instance of AppState
    LoginView()
+      .environmentObject(appState)
 }
