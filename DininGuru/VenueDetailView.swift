@@ -8,55 +8,58 @@
 import SwiftUI
 import WebKit
 
-
 struct VenueDetailView: View {
    let venue: Venue
    let venueURL: String?
    
    @AppStorage("userId") var userId: Int?
    @AppStorage("userEmail") var userEmail: String?
-
+   
    @State private var image: UIImage? = nil
    @State private var isLoadingImage = false
-   @ObservedObject private var networkMonitor = NetworkMonitor() // Monitors network status
+   @ObservedObject private var networkMonitor = NetworkMonitor()
    
-   // Rating-related state variables
-   @State private var selectedRating: VenueRating = .neutral
+   @State private var selectedRating: VenueRating? = nil
    @State private var averageRating: Double? = nil
-   
-   // Comment-related state variables
+   let reviewCount: Int? // 🆕 Added
+
    @State private var comments: [Comment] = []
    @State private var newCommentText: String = ""
    @State private var isSubmittingComment = false
    
-   // Alert-related state variables
-   @State private var showAlert = false // Show alert for errors
+   @State private var showAlert = false
    @State private var showSuccessMessage = false
-   @State private var alertMessage = "" // Message for the alert
+   @State private var alertMessage = ""
    @State private var showErrorMessage = false
-   @State private var selectedURL: URL? = nil // URL selected for web view
-   @State private var isWebViewLoading = false // Is web view loading
+   @State private var selectedURL: URL? = nil
+   @State private var isWebViewLoading = false
    
    
    var body: some View {
-      
-      ScrollView {
          VStack {
             VenueImage(image: image)
-            VenueDetails(venue: venue, selectedRating: $selectedRating, submitUserRating: submitUserRating,                     averageRating: averageRating)
+            VenueDetails(
+               venue: venue,
+               selectedRating: $selectedRating,
+               submitUserRating: submitUserRating,
+               averageRating: averageRating,
+               handleVisitWebsite: handleVisitWebsite,
+               reviewCount: reviewCount)
+            
+               .padding(.vertical, 10)
+            Divider().padding(.horizontal)
+            RatingView(selectedRating: $selectedRating, submitUserRating: submitUserRating, averageRating: averageRating, venue: venue)
+            Divider().padding(.vertical, 8).padding(.horizontal)
             CommentsSection(
                comments: comments,
                newCommentText: $newCommentText,
                isSubmittingComment: isSubmittingComment,
                submitOrUpdateComment: submitOrUpdateComment,
                toggleLikeComment: toggleLikeComment,
-               mealPeriod: getCurrentMealPeriod() // Pass mealPeriod here
+               mealPeriod: getCurrentMealPeriod()
             )
-            WebsiteButton(showAlert: $showAlert, alertMessage: alertMessage, handleVisitWebsite: handleVisitWebsite)
          }
-      }
-      .navigationTitle(venue.name)
-      .navigationBarTitleDisplayMode(.inline)
+      
       .onAppear {
          print("VenueDetailView appeared. UserId is: \(String(describing: userId))")
          loadImage()
@@ -64,13 +67,17 @@ struct VenueDetailView: View {
          fetchComments(
             venueId: String(venue.id),
             mealPeriod: getCurrentMealPeriod(),
-            userId: String(userId ?? 0) // Ensure userId is not nil
+            userId: String(userId ?? 0)
          ) { fetchedComments in
             DispatchQueue.main.async {
                self.comments = fetchedComments
             }
          }
-
+         RatingService.shared.fetchAverageRating(venueId: String(venue.id)) { avg, count in
+            DispatchQueue.main.async {
+               self.averageRating = avg
+            }
+         }
       }
       .alert(isPresented: $showSuccessMessage) {
          Alert(
@@ -82,7 +89,7 @@ struct VenueDetailView: View {
       .alert(isPresented: $showErrorMessage) {
          Alert(
             title: Text("Error"),
-            message: Text("Failed to submit rating. Please try again later."),
+            message: Text(alertMessage),
             dismissButton: .default(Text("OK"))
          )
       }
@@ -103,6 +110,7 @@ struct VenueDetailView: View {
    
 
    func submitUserRating() {
+      guard let selectedRating = selectedRating else { return }
       let mealPeriod = getCurrentMealPeriod()
       
       print("Attempting to submit rating. UserId is: \(String(describing: userId))")
@@ -134,13 +142,14 @@ struct VenueDetailView: View {
       }
    }
    
-    func fetchAverageRating() {
-       RatingService.shared.fetchAverageRating(venueId: String(venue.id)) { avgRating in
+   func fetchAverageRating() {
+      RatingService.shared.fetchAverageRating(venueId: String(venue.id)) { avg, count in
          DispatchQueue.main.async {
-            self.averageRating = avgRating
+            self.averageRating = avg
          }
       }
    }
+
 
    
    // MARK: - Comment Functions
@@ -352,6 +361,7 @@ extension URL: @retroactive Identifiable {
    public var id: String { absoluteString }
 }
 
+
 // Enum for Venue Ratings
 enum VenueRating: Int, CaseIterable, Identifiable {
    case wayWorse = 1
@@ -362,7 +372,6 @@ enum VenueRating: Int, CaseIterable, Identifiable {
    
    var id: Int { rawValue }
    
-   // **Add this computed property**
    var value: Double {
       switch self {
       case .wayWorse:
@@ -378,25 +387,31 @@ enum VenueRating: Int, CaseIterable, Identifiable {
       }
    }
 }
+   
 
 // RadioButton View
 struct RadioButton: View {
    let isSelected: Bool
+   let color: Color
    let action: () -> Void
    
    var body: some View {
       Button(action: {
-         self.action()
+         withAnimation(.spring(response: 0.3, dampingFraction: 0.6)) {
+            action()
+         }
       }) {
          Circle()
-            .stroke(Color.primary, lineWidth: 2)
-            .background(
+            .stroke(color, lineWidth: 2)
+            .frame(width: 30, height: 30)
+            .overlay(
                Circle()
-                  .fill(isSelected ? Color.primary : Color.clear)
+                  .fill(Color(red: 219/255, green: 172/255, blue: 72/255) )
+                  .frame(width: isSelected ? 16 : 0, height: isSelected ? 16 : 0)
+                  .animation(.easeInOut, value: isSelected)
             )
-            .frame(width: 24, height: 24)
+            .shadow(color: color.opacity(0.4), radius: isSelected ? 4 : 0, x: 0, y: 0)
       }
-      .buttonStyle(PlainButtonStyle())
    }
 }
 
@@ -410,46 +425,100 @@ struct VenueImage: View {
          Image(uiImage: image)
             .resizable()
             .aspectRatio(3 / 2, contentMode: .fill)
-            .frame(height: 200)
+            .frame(height: 150)
             .clipped()
       } else {
          Rectangle()
             .foregroundColor(Color(.systemGray5))
-            .frame(height: 200)
+            .frame(height: 150)
       }
    }
 }
 
 struct VenueDetails: View {
    let venue: Venue
-   @Binding var selectedRating: VenueRating
+   @Binding var selectedRating: VenueRating?
    let submitUserRating: () -> Void
-   let averageRating: Double? // Accept averageRating
+   let averageRating: Double?
+   let handleVisitWebsite: () -> Void
+   let reviewCount: Int? // Accept it here
+
+
+   // Determine color based on averageRating
+   private var averageColor: Color {
+      guard let avg = averageRating else { return .gray }
+      if avg >= 0.25 {
+         return .green
+      } else if avg <= -0.25 {
+         return .red
+      } else {
+         return .gray
+      }
+   }
    
    var body: some View {
       VStack(alignment: .leading, spacing: 8) {
-         Text(venue.name)
-            .font(.largeTitle)
-            .padding(.top)
-         // Closing time logic
-         if let closingTime = getClosingTime(venue: venue) {
-            Text("Open until \(closingTime)")
-               .foregroundColor(Color(UIColor.darkGray))
-               .font(.subheadline)
-         } else {
-            Text("CLOSED")
-               .foregroundColor(.gray)
-               .font(.subheadline)
-               .bold()
+         HStack {
+            Text(venue.name)
+               .font(.largeTitle)
+            Spacer()
+            WebsiteButton(handleVisitWebsite: handleVisitWebsite)
          }
-         // Rating logic
-         RatingView(selectedRating: $selectedRating, submitUserRating: submitUserRating, averageRating: averageRating)
-         Divider().padding(.vertical, 16)
+
+         
+            if let closingTime = getClosingTime(venue: venue) {
+               Text("OPEN UNTIL \(closingTime.uppercased())")
+                  .foregroundColor(Color(UIColor.darkGray))
+                  .font(.subheadline)
+            } else {
+               Text("CLOSED")
+                  .foregroundColor(.gray)
+                  .font(.subheadline)
+                  .bold()
+            }
+                        
+            if let averageRating = averageRating {
+               HStack{
+                  
+                  HStack(spacing: 3) {
+                     Image(systemName: averageRating >= 0 ? "chevron.up" : "chevron.down")
+                        .foregroundColor(averageColor)
+                        .imageScale(.small) // Makes the chevron smaller
+                     Text("\(String(format: "%.0f", abs(averageRating * 100)))%")
+                        .font(.subheadline)
+                        .foregroundColor(averageColor)
+                     
+                  }
+                  .font(.subheadline)
+                  .foregroundColor(averageColor)
+                  .padding(.horizontal, 8)
+                  .padding(.vertical, 4)
+                  .bold()
+                  .background(
+                     RoundedRectangle(cornerRadius: 8).fill(averageColor.opacity(0.2)))
+                  
+                  HStack (spacing: 3){
+                     Image(systemName: "person.3.fill").foregroundColor(.gray).imageScale(.small)
+                     
+                     
+                     Text("\(reviewCount ?? 0)")
+                        .foregroundColor(.gray)
+                        .font(.system(size: 15))
+                  }
+               }
+               
+            } else {
+               Text("Loading...")
+                  .font(.subheadline)
+                  .foregroundColor(.gray)
+
+            }
+      
+
       }
       .padding(.horizontal)
    }
 }
-
 
 
 
@@ -462,6 +531,8 @@ struct CommentsSection: View {
    let mealPeriod: String // Add mealPeriod as a property
    
    var body: some View {
+      let sortedComments = comments.sorted { $0.like_count > $1.like_count }
+
       VStack(alignment: .leading, spacing: 8) {
          Text("Comments:")
             .font(.headline)
@@ -471,39 +542,41 @@ struct CommentsSection: View {
                .foregroundColor(.gray)
                .padding(.vertical, 8)
          } else {
-            ForEach(comments) { comment in
-               CommentView(comment: comment, toggleLikeComment: toggleLikeComment) // Pass the toggle function
+            ScrollView{
+               ForEach(sortedComments) { comment in
+                  CommentView(comment: comment, toggleLikeComment: toggleLikeComment)
+               }
             }
          }
          
          // Add/Update Comment
-         VStack(alignment: .leading, spacing: 8) {
-            Text("Add a Comment:")
-               .font(.headline)
-            
-            TextEditor(text: $newCommentText)
-               .frame(height: 100)
-               .overlay(
-                  RoundedRectangle(cornerRadius: 8)
+         VStack {
+            HStack {
+               ZStack {
+                  RoundedRectangle(cornerRadius: 20)
                      .stroke(Color.gray.opacity(0.5), lineWidth: 1)
-               )
-               .padding(.bottom, 4)
-            
-            Button(action: submitOrUpdateComment) {
-               if isSubmittingComment {
-                  ProgressView()
-               } else {
-                  Text("Submit Comment")
-                     .foregroundColor(.white)
-                     .padding()
-                     .frame(maxWidth: .infinity)
-                     .background(Color.blue)
-                     .cornerRadius(8)
+                     .frame(height: 40)
+                  
+                  TextField("Add a comment...", text: $newCommentText)
+                     .padding(.horizontal, 10)
+                     .frame(height: 40)
                }
+               
+               Button(action: submitOrUpdateComment) {
+                  if isSubmittingComment {
+                     ProgressView()
+                  } else {
+                     Image(systemName: "paperplane")
+                        .foregroundColor(.white)
+                        .frame(width: 40, height: 40)
+                        .background(Color.blue)
+                        .clipShape(Circle())
+                  }
+               }
+               .disabled(newCommentText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isSubmittingComment)
             }
-            .disabled(newCommentText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isSubmittingComment)
          }
-         .padding(.top, 16)
+         .padding(.bottom)
       }
       .padding(.horizontal)
    }
@@ -511,22 +584,14 @@ struct CommentsSection: View {
 
 
 struct WebsiteButton: View {
-   @Binding var showAlert: Bool
-   let alertMessage: String
    let handleVisitWebsite: () -> Void
    
    var body: some View {
       Button(action: handleVisitWebsite) {
-         Text("Visit Website")
-            .foregroundColor(.blue)
-      }
-      .padding()
-      .alert(isPresented: $showAlert) {
-         Alert(
-            title: Text("Network Error"),
-            message: Text(alertMessage),
-            dismissButton: .default(Text("OK"))
-         )
+         Image(systemName: "menucard")
+            .imageScale(.large)
+         Image(systemName: "arrow.up.right")
+            .imageScale(.small)
       }
    }
 }
@@ -563,50 +628,41 @@ struct CommentView: View {
 
 
 struct RatingView: View {
-   @Binding var selectedRating: VenueRating
+   @Binding var selectedRating: VenueRating?
    let submitUserRating: () -> Void
-   let averageRating: Double? // Accept averageRating
-   
+   let averageRating: Double?
+   let venue: Venue
+
    var body: some View {
-      VStack(alignment: .leading, spacing: 8) {
-         Text("Rate Your Experience:")
+      VStack(alignment: .leading, spacing: 15) {
+         Text("How was \(venue.name) than usual?")
             .font(.headline)
             .padding(.top, 16)
          
-         HStack(spacing: 24) {
-            ForEach(VenueRating.allCases, id: \.self) { rating in
-               RadioButton(isSelected: selectedRating == rating) {
+         HStack(spacing: 25) {
+            ForEach(VenueRating.allCases) { rating in
+               RadioButton(
+                  isSelected: selectedRating == rating,
+                  color: Color(red: 219/255, green: 172/255, blue: 72/255)
+               ) {
                   selectedRating = rating
+                  submitUserRating()
                }
             }
          }
-         .padding(.vertical, 8)
+         .frame(maxWidth: .infinity, alignment: .center)
          
-         HStack {
-            Text("Way Worse Than Usual")
+         HStack (spacing: 140){
+            Text("Way worse :/")
                .font(.subheadline)
                .foregroundColor(.gray)
-            Spacer()
-            Text("Way Better Than Usual")
+            Text("Way better!")
                .font(.subheadline)
                .foregroundColor(.gray)
          }
-         
-         
-         if let averageRating = averageRating {
-            Text("Average Rating: \(String(format: "%.2f", averageRating))")
-               .font(.subheadline)
-               .padding(.top, 8)
-         } else {
-            Text("Average Rating: Loading...")
-               .font(.subheadline)
-               .padding(.top, 8)
-         }
-         
-         Button("Submit Rating") {
-            submitUserRating()
-         }
-         .padding(.top)
+         .frame(maxWidth: .infinity, alignment: .center)
+
       }
+      .padding(.horizontal)
    }
 }

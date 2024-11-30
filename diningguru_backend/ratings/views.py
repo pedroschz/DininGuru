@@ -69,7 +69,8 @@ def average_rating(request, venue_id):
             return JsonResponse({"error": "Missing meal_period."}, status=400)
         ratings = Rating.objects.filter(venue_id=venue_id, meal_period=meal_period)
         average = ratings.aggregate(Avg('rating'))['rating__avg'] or 0.0
-        return JsonResponse({"averageRating": average}, status=200)
+        count = ratings.count()
+        return JsonResponse({"averageRating": average, "reviewCount": count}, status=200)
 
 
 def fetch_comments(request, venue_id):

@@ -15,41 +15,46 @@ import WebKit
 struct ListElement: View {
    let venue: Venue
    let venueURL: String?
-   // let onSelect: (URL) -> Void
    
    @State private var showWebView = false
    @State private var selectedURL: URL? = nil
    
    @State private var image: UIImage? = nil
    @State private var isLoadingImage = false
+   let reviewCount: Int?
+
+   private var averageColor: Color {
+      guard let avg = venue.averageRating else { return .gray }
+      if avg >= 0.25 {
+         return .green
+      } else if avg <= -0.25 {
+         return .red
+      } else {
+         return .gray
+      }
+   }
+   
    
    var body: some View {
-      /*Button(action: {
-       if let urlString = venueURL, let url = URL(string: urlString) {
-       print("Opening URL: \(url)") // log for debugging
-       onSelect(url) // call onSelect callback
-       } else {
-       print("Invalid URL for venue ID: \(venue.id)") // log if URL is bad
-       }
-       })*/
       HStack(spacing: 12) {
          Group {
-            if let image = image { // check if image is loaded
+            if let image = image {
                Image(uiImage: image)
                   .resizable()
                   .aspectRatio(3 / 2, contentMode: .fill)
                   .frame(width: 100, height: 70)
                   .cornerRadius(10)
                   .clipped()
+                  .grayscale(isClosedNow() ? 1 : 0)
             } else {
                ZStack {
-                  Rectangle() // placeholder for image
+                  Rectangle()
                      .foregroundColor(Color(.systemGray5))
                      .frame(width: 100, height: 70)
                      .cornerRadius(10)
                   
                   if isLoadingImage {
-                     ProgressView() // loading indicator
+                     ProgressView()
                   } else {
                      Image(systemName: "building.2.fill")
                         .resizable()
@@ -61,17 +66,18 @@ struct ListElement: View {
             }
          }
          .onAppear {
-            loadImage() // load image when view appears
+            loadImage()
          }
          
          VStack(alignment: .leading, spacing: 4) {
             Text(venue.name)
                .font(.title3)
                .fontWeight(.regular)
+               .foregroundColor(isClosedNow() ? .gray : .primary)
             
             if let closingTime = getClosingTime(venue: venue) {
                Text("Open until \(closingTime)")
-                  .foregroundColor(Color(UIColor.darkGray))
+                  .foregroundColor(isClosedNow() ? .gray : Color(UIColor.darkGray))
                   .font(.subheadline)
             } else {
                Text("CLOSED")
@@ -79,18 +85,54 @@ struct ListElement: View {
                   .font(.subheadline)
                   .bold()
             }
+            
+            // Average Rating
+            if let averageRating = venue.averageRating, let reviewCount = reviewCount {
+               HStack{
+                  HStack(spacing: 3) {
+                     Image(systemName: averageRating >= 0 ? "chevron.up" : "chevron.down")
+                        .foregroundColor(averageColor)
+                        .imageScale(.small)
+                     Text("\(String(format: "%.0f", abs(averageRating * 100)))%")
+                        .font(.subheadline)
+                        .foregroundColor(averageColor)
+                  }
+                  .font(.subheadline)
+                  .padding(.horizontal, 8)
+                  .padding(.vertical, 4)
+                  .bold()
+                  .background(
+                     RoundedRectangle(cornerRadius: 8).fill(averageColor.opacity(0.2))
+                  )
+                  
+                  HStack (spacing: 3){
+                     Image(systemName: "person.3.fill").foregroundColor(.gray).imageScale(.small)
+
+
+                     Text("\(reviewCount)")
+                        .foregroundColor(.gray)
+                        .font(.system(size: 15))
+                  }
+               }
+               
+            } else {
+               Text("Loading reviews...")
+                  .font(.subheadline)
+                  .foregroundColor(.gray)
+            }
          }
          .frame(maxWidth: .infinity, alignment: .leading)
          .padding(.trailing, 8)
-         
-         
       }
-      
+   }
+   
+   private func isClosedNow() -> Bool {
+      return getClosingTime(venue: venue) == nil
    }
    
    private func loadImage() {
       guard let imageURLString = venue.image, let imageURL = URL(string: imageURLString) else {
-         return // no image available
+         return
       }
       
       if let cachedImage = ImageCache.shared.getImage(forKey: imageURLString) {
@@ -107,7 +149,7 @@ struct ListElement: View {
                self.isLoadingImage = false
             }
             
-            // Try to save image for widget use
+            // Save for widget
             if let sharedContainerURL = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: "group.com.petrvskystudios.DiningApp") {
                let imagesURL = sharedContainerURL.appendingPathComponent("Images")
                do {
@@ -118,19 +160,16 @@ struct ListElement: View {
                      print("Image saved to shared container at: \(imageFileURL.path)")
                   }
                } catch {
-                  print("Error saving image to shared container: \(error.localizedDescription)")
-                  // TODO: proper error handling
+                  print("Error saving image: \(error.localizedDescription)")
                }
             } else {
                print("Shared container URL is nil.")
-               // MARK: fallback if shared container fails
             }
          } else {
-            print("Failed to load image for venue: \(venue.name), error: \(error?.localizedDescription ?? "Unknown error")")
+            print("Failed to load image for \(venue.name): \(error?.localizedDescription ?? "Unknown error")")
             DispatchQueue.main.async {
                self.isLoadingImage = false
             }
-            // TODO: show a default image or retry loading?
          }
       }.resume()
    }
@@ -139,34 +178,20 @@ struct ListElement: View {
 
 func getClosingTime(venue: Venue) -> String? {
    let now = Date()
-   //let calendar = Calendar.current
-   let dateFormatter = DateFormatter()
-   dateFormatter.dateFormat = "yyyy-MM-dd"
-   dateFormatter.timeZone = TimeZone.current
+   let formatter = DateFormatter()
+   formatter.dateFormat = "yyyy-MM-dd"
+   formatter.timeZone = TimeZone.current
    
-   // Get today's date as a string
-   let todayString = dateFormatter.string(from: now)
+   let todayString = formatter.string(from: now)
    
-   // Find the Day object for today
    guard let today = venue.days.first(where: { $0.date == todayString }) else {
-      // No data for today
       return nil
    }
    
-   // Check if the venue is open today
    if today.status.lowercased() != "open" {
-      return nil // Venue is closed today
+      return nil
    }
    
-   /*
-    // Time formatter for start and end times
-    let timeFormatter = DateFormatter()
-    timeFormatter.dateFormat = "h:mm a"
-    timeFormatter.locale = Locale(identifier: "en_US_POSIX")
-    timeFormatter.timeZone = TimeZone.current
-    */
-   
-   // Iterate through today's dayparts to find current operating hours
    for dayPart in today.dayparts {
       guard let startTime = parseTime(dayPart.starttime, onDate: now),
             let endTime = parseTime(dayPart.endtime, onDate: now) else {
@@ -181,9 +206,9 @@ func getClosingTime(venue: Venue) -> String? {
       }
    }
    
-   // Venue is closed now
    return nil
 }
+
 
 
 func parseTime(_ timeString: String, onDate date: Date) -> Date? {

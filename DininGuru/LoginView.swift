@@ -267,3 +267,8 @@ struct LoginView: View {
       }.resume()
    }
 }
+
+
+#Preview {
+   LoginView()
+}

@@ -7,6 +7,8 @@
 
 import SwiftUI
 import WidgetKit
+import Combine
+
 
 // MARK: - Index
 
@@ -14,7 +16,6 @@ import WidgetKit
 
 // displayedVenues: filters and sorts the five dining hall venues
 
-// sortVenues: sorts venues alphabetically
 // fetchDiningData: gets dining data from DiningService
 // handleVenueSelection: manages what happens when a venue is selected (like network checks)
 // saveVenuesToSharedDefaults: saves venues for widget use
@@ -23,24 +24,24 @@ import WidgetKit
 
 struct Main: View {
    
-   // State variables to keep track of app state, loading, and errors
-   @State private var venues: [Venue] = [] // list of all venues
-   @State private var isLoading = true // is data loading
-   //@State private var selectedURL: URL? = nil // URL selected for web view
-   //@State private var isWebViewLoading = false // is web view loading
-   @State private var showAlert = false // show alert for errors
-   @State private var alertMessage = "" // message for the alert
-   @ObservedObject private var networkMonitor = NetworkMonitor() // monitors network status
-   private let diningService = DiningService() // service to fetch dining data
+   // State variables
+   @State private var venues: [Venue] = []
+   @State private var isLoading = true
+   @State private var showAlert = false
+   @State private var alertMessage = ""
+   @ObservedObject private var networkMonitor = NetworkMonitor()
+   private let diningService = DiningService()
    
    @AppStorage("userId") var userId: Int?
    @AppStorage("userEmail") var userEmail: String?
    @EnvironmentObject var appState: AppState
+   @State private var reviewCount: [Int: Int] = [:]
    
-   // Set of IDs representing the five dining halls
+   private var timer: Publishers.Autoconnect<Timer.TimerPublisher> {
+      Timer.publish(every: 1.0, on: .main, in: .common).autoconnect()
+   }
+   
    let diningHallIDs: Set<Int> = [593, 636, 637, 1442, 1464004]
-   
-   // Mapping of venue IDs to their URLs
    let venueURLs: [Int: String] = [
       593: "https://university-of-pennsylvania.cafebonappetit.com/cafe/1920-commons/",
       636: "https://university-of-pennsylvania.cafebonappetit.com/cafe/hill-house/",
@@ -53,22 +54,24 @@ struct Main: View {
       NavigationView {
          VStack(spacing: 0) {
             VStack(alignment: .leading, spacing: 4) {
+               
                Text("Ratings for \(todayDateString())") // today's date
                   .font(.headline)
                   .bold()
                   .foregroundColor(.gray)
                
-               Text("Today's Ratings ⭐️")
+               if let userEmail = userEmail {
+                     let truncatedEmail = userEmail.components(separatedBy: "@").first ?? userEmail
+                     Text("Hello, \(truncatedEmail)!")
+                        .font(.largeTitle)
+                        .fontWeight(.bold)
+                     
+                  }
+               
+            
+               Text("Today's ratings ⭐️")
                   .font(.largeTitle)
                   .fontWeight(.bold)
-               
-               // Display user info here
-               if let userId = userId, let userEmail = userEmail {
-                  Text("Logged in as: \(userEmail) (ID: \(userId))")
-                     .font(.subheadline)
-                     .foregroundColor(.gray)
-               }
-               
             }
             .padding(.horizontal, 16)
             .padding(.top, 16)
@@ -77,87 +80,134 @@ struct Main: View {
             
             List {
                ForEach(displayedVenues) { venue in
-                  NavigationLink(destination: VenueDetailView(venue: venue, venueURL: venueURLs[venue.id])) {
+                  NavigationLink(destination: VenueDetailView(venue: venue, venueURL: venueURLs[venue.id], reviewCount: self.reviewCount[venue.id])) {
                      ListElement(
                         venue: venue,
-                        venueURL: venueURLs[venue.id]
+                        venueURL: venueURLs[venue.id],
+                        reviewCount: self.reviewCount[venue.id]
                      )
-                  }
+                  }.padding(.vertical, 3)
                }
             }
-            
-            
+            .refreshable {
+               fetchDiningData()
+            }
             .listStyle(PlainListStyle())
             .alert(isPresented: $showAlert) {
                Alert(title: Text("Network Error"), message: Text(alertMessage), dismissButton: .default(Text("OK")))
             }
             
             Spacer()
-            Button(action: logout) {
-               Text("Logout")
-                  .foregroundColor(.red)
+            
+            VStack (spacing: 10){
+               Button(action: logout) {
+                  Text("logout")
+                     .foregroundColor(.blue)
+                     .opacity(0.7)
+               }
+               Button(action: sendEmail) {
+                  Text("feedback")
+                     .foregroundColor(.gray)
+                     .underline()
+               }
+               Button(action: openInstagram) {
+                  Text("by pedro")
+                     .foregroundColor(.gray)
+               }
             }
-            .padding(.bottom)
+
          }
          .onAppear {
+            fetchDiningData()
+         }
+         .onReceive(timer) { _ in
             fetchDiningData()
          }
       }
    }
    
-   // Computed property to get all displayed venues
+   
+   
    private var displayedVenues: [Venue] {
       let halls = venues.filter { diningHallIDs.contains($0.id) }
       return sortVenues(halls)
    }
    
-   // Sorts venues alphabetically
-   private func sortVenues(_ venues: [Venue]) -> [Venue] {
-      venues.sorted { lhs, rhs in
-         lhs.name < rhs.name // sorts alphabetically
+   private func sendEmail() {
+      if let url = URL(string: "mailto:pedrosan@seas.upenn.edu?subject=DininGuru%20ideas") {
+         UIApplication.shared.open(url)
       }
    }
    
-   // Function to fetch dining data
+   private func openInstagram() {
+      if let url = URL(string: "https://instagram.com/pedroschzgil/") {
+         UIApplication.shared.open(url)
+      }
+   }
+   
+   private func sortVenues(_ venues: [Venue]) -> [Venue] {
+      venues.sorted { lhs, rhs in
+         if lhs.isOpen && !rhs.isOpen {
+            return true
+         }
+         if !lhs.isOpen && rhs.isOpen {
+            return false
+         }
+         return (lhs.averageRating ?? 0) > (rhs.averageRating ?? 0)
+      }
+   }
+   
    private func fetchDiningData() {
       diningService.fetchDiningData { result in
          switch result {
-         case .success(let venues):
-            self.venues = venues
-            self.isLoading = false
-            self.saveVenuesToSharedDefaults() // save venues after fetching
+         case .success(var fetchedVenues):
+            let group = DispatchGroup()
+            
+            for index in fetchedVenues.indices {
+               let venue = fetchedVenues[index]
+               group.enter()
+               RatingService.shared.fetchAverageRating(venueId: String(venue.id)) { avg, count in
+                  fetchedVenues[index].averageRating = avg
+                  self.reviewCount[venue.id] = count
+                  group.leave()
+               }
+            }
+            
+            group.notify(queue: .main) {
+               self.venues = sortVenues(fetchedVenues)
+               self.isLoading = false
+               self.saveVenuesToSharedDefaults()
+            }
+            
          case .failure(let error):
             print("Failed to load data: \(error.localizedDescription)")
             self.isLoading = false
-            // TODO: Maybe show a more user-friendly error message here but for now it works
+            self.showAlert = true
+            self.alertMessage = "Failed to load venues."
          }
       }
    }
    
    private func logout() {
-      // Clear user data
       userId = nil
       userEmail = nil
-      
-      // Update app state
       appState.isLoggedIn = false
-      appState.isLoggedOut = true // Notify LoginView to reset
+      appState.isLoggedOut = true
    }
    
-   // Save venues to shared defaults for widget usage
    private func saveVenuesToSharedDefaults() {
       if let data = try? JSONEncoder().encode(venues) {
          let sharedDefaults = UserDefaults(suiteName: "group.com.petrvskystudios.DiningApp")
          sharedDefaults?.set(data, forKey: "SharedVenues")
-         
-         // Notify the widget to reload its timeline
          WidgetCenter.shared.reloadTimelines(ofKind: "DiningAppWidget")
       } else {
          print("Failed to encode venues.")
-         // TODO: notify the user or retry encoding
       }
    }
 }
+
+
+
 
 // For sheet presentation
 

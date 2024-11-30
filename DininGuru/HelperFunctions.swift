@@ -27,15 +27,14 @@ struct Venue: Identifiable, Codable {
    var image: String?
    var imageData: Data?
    var days: [Day]
+   var averageRating: Double?
    
-   // nested struct for a day
    struct Day: Codable, Hashable, Equatable {
       var date: String
       var status: String
       var dayparts: [DayPart]
    }
    
-   // nested struct for day part
    struct DayPart: Codable, Hashable, Equatable {
       var starttime: String
       var endtime: String
@@ -43,9 +42,24 @@ struct Venue: Identifiable, Codable {
    }
    
    var isOpen: Bool {
-      days.contains(where: { $0.status == "open" })
+      let formatter = DateFormatter()
+      formatter.dateFormat = "yyyy-MM-dd"
+      formatter.timeZone = TimeZone.current
+      let today = formatter.string(from: Date())
+      
+      // Debug: Print today's date
+      print("Today’s Date: \(today)")
+      
+      if let todayDay = days.first(where: { $0.date == today }) {
+         // Debug: Print today's status
+         print("Venue \(name) Status Today: \(todayDay.status)")
+         return todayDay.status.lowercased() == "open"
+      }
+      
+      return false
    }
 }
+
 
 
 struct Comment: Identifiable, Codable {
@@ -96,6 +110,7 @@ func formatDayParts(_ venue: Venue) -> String {
    
    return formatDayParts(day.dayparts)
 }
+
 
 func formatDayParts(_ dayparts: [Venue.DayPart]) -> String {
    if dayparts.isEmpty {

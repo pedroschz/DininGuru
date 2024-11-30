@@ -52,8 +52,8 @@ class RatingService {
       }
    }
    
-   func fetchAverageRating(venueId: String, completion: @escaping (Double?) -> Void) {
-      
+   func fetchAverageRating(venueId: String, completion: @escaping (Double?, Int?) -> Void) {
+
       func getCurrentMealPeriod() -> String {
          let now = Date()
          let calendar = Calendar.current
@@ -74,30 +74,29 @@ class RatingService {
       let mealPeriod = getCurrentMealPeriod()
       
       guard let url = URL(string: "http://127.0.0.1:8000/api/ratings/\(venueId)/average?meal_period=\(mealPeriod)") else {
-         
-         completion(nil)
+         completion(nil, nil)
          return
       }
       
       URLSession.shared.dataTask(with: url) { data, response, error in
          if let error = error {
             print("Error fetching average rating: \(error)")
-            completion(nil)
+            completion(nil, nil)
             return
          }
-         guard let data = data, let result = try? JSONDecoder().decode(AverageRatingResponse.self, from: data) else {
-            completion(nil)
+         guard let data = data,
+               let result = try? JSONDecoder().decode(AverageRatingResponse.self, from: data) else {
+            completion(nil, nil)
             return
          }
-         completion(result.averageRating)
+         completion(result.averageRating, result.reviewCount)
       }.resume()
+      
    }
-   
-   
 }
 
 struct AverageRatingResponse: Codable {
    let averageRating: Double
+   let reviewCount: Int
 }
-
 
