@@ -7,7 +7,9 @@ from .views import (
     fetch_comments,
     submit_or_update_comment,
     like_comment,
-    unlike_comment
+    unlike_comment,
+    get_all_ratings,
+    get_all_comments,
 )
 
 
@@ -21,5 +23,7 @@ urlpatterns = [
     path('comments', submit_or_update_comment, name='submit_or_update_comment'),  # POST /api/comments
     path('comments/<int:comment_id>/like/', like_comment, name='like_comment'),
     path('comments/<int:comment_id>/unlike/', unlike_comment, name='unlike_comment'),
+    path('ratings/all/', get_all_ratings, name='get_all_ratings'),
+    path('comments/all/', get_all_comments, name='get_all_comments'),
 
 ]

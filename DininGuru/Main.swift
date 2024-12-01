@@ -37,9 +37,6 @@ struct Main: View {
    @EnvironmentObject var appState: AppState
    @State private var reviewCount: [Int: Int] = [:]
    
-   private var timer: Publishers.Autoconnect<Timer.TimerPublisher> {
-      Timer.publish(every: 2.0, on: .main, in: .common).autoconnect()
-   }
    
    let diningHallIDs: Set<Int> = [593, 636, 637, 1442, 1464004]
    let venueURLs: [Int: String] = [
@@ -118,9 +115,6 @@ struct Main: View {
 
          }
          .onAppear {
-            fetchDiningData()
-         }
-         .onReceive(timer) { _ in
             fetchDiningData()
          }
       }

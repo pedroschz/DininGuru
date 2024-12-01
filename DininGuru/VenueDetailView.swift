@@ -155,7 +155,7 @@ struct VenueDetailView: View {
    // MARK: - Comment Functions
    
    func fetchComments(venueId: String, mealPeriod: String, userId: String, completion: @escaping ([Comment]) -> Void) {
-      var urlComponents = URLComponents(string: "http://127.0.0.1:8000/api/comments/\(venueId)")!
+      var urlComponents = URLComponents(string: "https://dininguru.onrender.com/api/comments/\(venueId)")!
       urlComponents.queryItems = [
          URLQueryItem(name: "meal_period", value: mealPeriod),
          URLQueryItem(name: "user_id", value: userId)

@@ -132,6 +132,29 @@ struct LoginView: View {
 
          }
          .padding()
+         
+         // Loading Overlay
+         if isLoading {
+            ZStack {
+               Color.black.opacity(0.5)
+                  .ignoresSafeArea()
+               
+               VStack {
+                  ProgressView()
+                     .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                     .scaleEffect(2) // Makes the spinner larger
+                  
+                  Text("Loading...")
+                     .font(.headline)
+                     .foregroundColor(.white)
+                     .padding(.top, 10) // Adds spacing between spinner and text
+               }
+            }
+            .transition(.opacity)
+            .animation(.easeInOut)
+         }
+
+         
       }
       .onAppear {
          if appState.isLoggedOut {
@@ -155,6 +178,7 @@ struct LoginView: View {
          return
       }
       
+      // Special case for admin email
       if trimmedEmail == "slpnoviembre@gmail.com" {
          // Directly set user data and log in
          UserDefaults.standard.set(13, forKey: "userId") // Assign a dummy userId
@@ -165,10 +189,16 @@ struct LoginView: View {
          return
       }
       
+      // Check for valid Penn email
+      guard trimmedEmail.hasSuffix("upenn.edu") else {
+         self.errorMessage = "Penn email pls :)"
+         return
+      }
+      
       isLoading = true
       errorMessage = nil
       
-      guard let url = URL(string: "http://127.0.0.1:8000/api/accounts/login/") else {
+      guard let url = URL(string: "https://dininguru.onrender.com/api/accounts/login/") else {
          self.errorMessage = "Invalid server URL."
          self.isLoading = false
          return
@@ -234,7 +264,7 @@ struct LoginView: View {
          }
       }.resume()
    }
-   
+
    private func verifyCode() {
 
 
@@ -263,7 +293,7 @@ struct LoginView: View {
       isLoading = true
       errorMessage = nil
       
-      guard let url = URL(string: "http://127.0.0.1:8000/api/accounts/verify/") else {
+      guard let url = URL(string: "https://dininguru.onrender.com/api/accounts/verify/") else {
          self.errorMessage = "Invalid server URL."
          self.isLoading = false
          return

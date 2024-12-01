@@ -19,7 +19,7 @@ class CommentService {
    
    // Fetch all comments for a specific venue
    func fetchComments(venueId: String, mealPeriod: String, userId: String, completion: @escaping ([Comment]) -> Void) {
-      var urlComponents = URLComponents(string: "http://127.0.0.1:8000/api/comments/\(venueId)")!
+      var urlComponents = URLComponents(string: "https://dininguru.onrender.com/api/comments/\(venueId)")!
       urlComponents.queryItems = [
          URLQueryItem(name: "meal_period", value: mealPeriod),
          URLQueryItem(name: "user_id", value: userId)
@@ -53,7 +53,7 @@ class CommentService {
    
    // Submit a new comment or update existing one for a user
    func submitOrUpdateComment(venueId: String, userId: String, text: String, mealPeriod: String, completion: @escaping (Bool) -> Void) {
-      guard let url = URL(string: "http://127.0.0.1:8000/api/comments") else {
+      guard let url = URL(string: "https://dininguru.onrender.com/api/comments") else {
          completion(false)
          return
       }
@@ -104,7 +104,7 @@ class CommentService {
    
    // Like a comment
    func likeComment(commentId: String, userId: String, completion: @escaping (Bool) -> Void) {
-      guard let url = URL(string: "http://127.0.0.1:8000/api/comments/\(commentId)/like/") else {
+      guard let url = URL(string: "https://dininguru.onrender.com/api/comments/\(commentId)/like/") else {
          completion(false)
          return
       }
@@ -136,7 +136,7 @@ class CommentService {
    }
    
    func unlikeComment(commentId: String, userId: String, completion: @escaping (Bool) -> Void) {
-      guard let url = URL(string: "http://127.0.0.1:8000/api/comments/\(commentId)/unlike/") else {
+      guard let url = URL(string: "https://dininguru.onrender.com/api/comments/\(commentId)/unlike/") else {
          completion(false)
          return
       }
