@@ -7,6 +7,54 @@
 
 import SwiftUI
 import WebKit
+import Combine
+
+
+class KeyboardResponder: ObservableObject {
+   @Published var keyboardHeight: CGFloat = 0
+   @Published var isKeyboardVisible: Bool = false
+   private var cancellables = Set<AnyCancellable>()
+   
+   init() {
+      let keyboardWillShow = NotificationCenter.default
+         .publisher(for: UIResponder.keyboardWillShowNotification)
+         .compactMap { $0.userInfo?[UIResponder.keyboardFrameEndUserInfoKey] as? CGRect }
+         .map { frame -> CGFloat in
+            self.isKeyboardVisible = true
+            return frame.height
+         }
+      
+      let keyboardWillHide = NotificationCenter.default
+         .publisher(for: UIResponder.keyboardWillHideNotification)
+         .map { _ -> CGFloat in
+            self.isKeyboardVisible = false
+            return CGFloat.zero
+         }
+      
+      Publishers.Merge(keyboardWillShow, keyboardWillHide)
+         .receive(on: RunLoop.main)
+         .assign(to: &$keyboardHeight)
+   }
+}
+
+
+struct KeyboardAdaptive: ViewModifier {
+   @ObservedObject private var keyboardResponder = KeyboardResponder()
+   
+   func body(content: Content) -> some View {
+      content
+         .padding(.bottom, keyboardResponder.keyboardHeight)
+         .animation(.easeOut(duration: 0.2), value: keyboardResponder.keyboardHeight)
+   }
+}
+
+
+extension UIApplication {
+   func dismissKeyboard() {
+      sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+   }
+}
+
 
 struct VenueDetailView: View {
    let venue: Venue
@@ -35,31 +83,42 @@ struct VenueDetailView: View {
    @State private var isWebViewLoading = false
    
    
+   
+   @StateObject private var keyboardResponder = KeyboardResponder()
+
+   
+   
    var body: some View {
-         VStack {
+      VStack {
+         if !keyboardResponder.isKeyboardVisible {
             VenueImage(image: image)
-            VenueDetails(
-               venue: venue,
-               selectedRating: $selectedRating,
-               submitUserRating: submitUserRating,
-               averageRating: averageRating,
-               handleVisitWebsite: handleVisitWebsite,
-               reviewCount: reviewCount)
-            
-               .padding(.vertical, 10)
-            Divider().padding(.horizontal)
-            RatingView(selectedRating: $selectedRating, submitUserRating: submitUserRating, averageRating: averageRating, venue: venue)
-            Divider().padding(.vertical, 8).padding(.horizontal)
-            CommentsSection(
-               comments: comments,
-               newCommentText: $newCommentText,
-               isSubmittingComment: isSubmittingComment,
-               submitOrUpdateComment: submitOrUpdateComment,
-               toggleLikeComment: toggleLikeComment,
-               mealPeriod: getCurrentMealPeriod()
-            )
          }
-      
+         VenueDetails(
+            venue: venue,
+            selectedRating: $selectedRating,
+            submitUserRating: submitUserRating,
+            averageRating: averageRating,
+            handleVisitWebsite: handleVisitWebsite,
+            reviewCount: reviewCount
+         )
+         .padding(.vertical, 10)
+         Divider().padding(.horizontal)
+         RatingView(
+            selectedRating: $selectedRating,
+            submitUserRating: submitUserRating,
+            averageRating: averageRating,
+            venue: venue
+         )
+         Divider().padding(.vertical, 8).padding(.horizontal)
+         CommentsSection(
+            comments: comments,
+            newCommentText: $newCommentText,
+            isSubmittingComment: isSubmittingComment,
+            submitOrUpdateComment: submitOrUpdateComment,
+            toggleLikeComment: toggleLikeComment,
+            mealPeriod: getCurrentMealPeriod()
+         )
+      }
       .onAppear {
          print("VenueDetailView appeared. UserId is: \(String(describing: userId))")
          loadImage()
@@ -105,7 +164,6 @@ struct VenueDetailView: View {
             .edgesIgnoringSafeArea(.all)
       }
    }
-   
    // MARK: - Rating Functions
    
 
@@ -527,58 +585,66 @@ struct CommentsSection: View {
    @Binding var newCommentText: String
    let isSubmittingComment: Bool
    let submitOrUpdateComment: () -> Void
-   let toggleLikeComment: (Comment) -> Void // Updated parameter
-   let mealPeriod: String // Add mealPeriod as a property
+   let toggleLikeComment: (Comment) -> Void
+   let mealPeriod: String
    
    var body: some View {
-      let sortedComments = comments.sorted { $0.like_count > $1.like_count }
-
-      VStack(alignment: .leading, spacing: 8) {
-         Text("Comments:")
-            .font(.headline)
+      VStack {
+         let sortedComments = comments.sorted { $0.like_count > $1.like_count }
          
-         if comments.isEmpty {
-            Text("No comments yet. Be the first to comment!")
-               .foregroundColor(.gray)
-               .padding(.vertical, 8)
-         } else {
-            ScrollView{
-               ForEach(sortedComments) { comment in
-                  CommentView(comment: comment, toggleLikeComment: toggleLikeComment)
-               }
-            }
-         }
-         
-         // Add/Update Comment
-         VStack {
-            HStack {
-               ZStack {
-                  RoundedRectangle(cornerRadius: 20)
-                     .stroke(Color.gray.opacity(0.5), lineWidth: 1)
-                     .frame(height: 40)
-                  
-                  TextField("Add a comment...", text: $newCommentText)
-                     .padding(.horizontal, 10)
-                     .frame(height: 40)
-               }
-               
-               Button(action: submitOrUpdateComment) {
-                  if isSubmittingComment {
-                     ProgressView()
-                  } else {
-                     Image(systemName: "paperplane")
-                        .foregroundColor(.white)
-                        .frame(width: 40, height: 40)
-                        .background(Color.blue)
-                        .clipShape(Circle())
+         VStack(alignment: .leading, spacing: 8) {
+            Text("Comments:")
+               .font(.headline)
+            
+            if comments.isEmpty {
+               Text("No comments yet. Be the first to comment!")
+                  .foregroundColor(.gray)
+                  .padding(.vertical, 8)
+            } else {
+               ScrollView {
+                  ForEach(sortedComments) { comment in
+                     CommentView(comment: comment, toggleLikeComment: toggleLikeComment)
                   }
                }
-               .disabled(newCommentText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isSubmittingComment)
             }
+            
+            // Add/Update Comment
+            VStack {
+               HStack {
+                  ZStack {
+                     RoundedRectangle(cornerRadius: 20)
+                        .stroke(Color.gray.opacity(0.5), lineWidth: 1)
+                        .frame(height: 40)
+                     
+                     TextField("Add a comment...", text: $newCommentText)
+                        .padding(.horizontal, 10)
+                        .frame(height: 40)
+                  }
+                  
+                  Button(action: {
+                     submitOrUpdateComment()
+                     UIApplication.shared.dismissKeyboard() 
+                  }) {
+                     if isSubmittingComment {
+                        ProgressView()
+                     } else {
+                        Image(systemName: "paperplane")
+                           .foregroundColor(.white)
+                           .frame(width: 40, height: 40)
+                           .background(Color.blue)
+                           .clipShape(Circle())
+                     }
+                  }
+                  .disabled(newCommentText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isSubmittingComment)
+
+
+               }
+            }
+            .padding(.bottom)
          }
-         .padding(.bottom)
+         .padding(.horizontal)
       }
-      .padding(.horizontal)
+      .modifier(KeyboardAdaptive()) // Apply the custom modifier
    }
 }
 

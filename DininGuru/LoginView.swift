@@ -266,8 +266,6 @@ struct LoginView: View {
    }
 
    private func verifyCode() {
-
-
       let trimmedCode = code.trimmingCharacters(in: .whitespacesAndNewlines)
       guard !trimmedCode.isEmpty else {
          self.errorMessage = "Please enter the verification code."
@@ -322,11 +320,6 @@ struct LoginView: View {
             self.isLoading = false
          }
          
-         DispatchQueue.main.async {
-            appState.isLoggedIn = true
-         }
-
-         
          if let error = error {
             DispatchQueue.main.async {
                self.errorMessage = "Network error: \(error.localizedDescription)"
@@ -344,15 +337,14 @@ struct LoginView: View {
          do {
             if let json = try JSONSerialization.jsonObject(with: data, options: []) as? [String: Any],
                let userId = json["user_id"] as? Int {
-               // Save userId to UserDefaults
+               // Verification successful, save userId to UserDefaults
                UserDefaults.standard.set(userId, forKey: "userId")
                DispatchQueue.main.async {
-                  UserDefaults.standard.set(userId, forKey: "userId")
-                  print("User ID \(userId) saved to UserDefaults")
                   appState.isLoggedIn = true
                }
             } else if let json = try JSONSerialization.jsonObject(with: data, options: []) as? [String: Any],
                       let errorMessage = json["error"] as? String {
+               // Handle server-reported error
                DispatchQueue.main.async {
                   self.errorMessage = errorMessage
                }
