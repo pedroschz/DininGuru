@@ -13,7 +13,7 @@ class RatingService {
 
    
    func submitRating(venueId: String, rating: Double, userId: String, mealPeriod: String, completion: @escaping (Bool) -> Void) {
-      guard let url = URL(string: "http://127.0.0.1:8000/api/ratings") else {
+      guard let url = URL(string: "https://dininguru.onrender.com/api/ratings") else {
          completion(false)
          return
       }
@@ -73,7 +73,7 @@ class RatingService {
       
       let mealPeriod = getCurrentMealPeriod()
       
-      guard let url = URL(string: "http://127.0.0.1:8000/api/ratings/\(venueId)/average?meal_period=\(mealPeriod)") else {
+      guard let url = URL(string: "https://dininguru.onrender.com/api/ratings/\(venueId)/average?meal_period=\(mealPeriod)") else {
          completion(nil, nil)
          return
       }

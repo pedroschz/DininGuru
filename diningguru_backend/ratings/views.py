@@ -10,9 +10,114 @@ from django.db.models import Avg
 import json
 import logging
 from django.core.exceptions import ValidationError
-
+from django.core.paginator import Paginator
+from django.db.models import Q
 
 logger = logging.getLogger(__name__)
+
+
+
+def get_all_ratings(request):
+    if request.method == "GET":
+        # Fetch query parameters
+        user_id = request.GET.get('user_id')
+        venue_id = request.GET.get('venue_id')
+        meal_period = request.GET.get('meal_period')
+        start_date = request.GET.get('start_date')
+        end_date = request.GET.get('end_date')
+        page_number = request.GET.get('page', 1)
+        page_size = request.GET.get('page_size', 50)
+
+        # Build filters
+        filters = Q()
+        if user_id:
+            filters &= Q(user_id=user_id)
+        if venue_id:
+            filters &= Q(venue_id=venue_id)
+        if meal_period:
+            filters &= Q(meal_period__iexact=meal_period)
+        if start_date and end_date:
+            filters &= Q(timestamp__range=[start_date, end_date])
+        elif start_date:
+            filters &= Q(timestamp__gte=start_date)
+        elif end_date:
+            filters &= Q(timestamp__lte=end_date)
+
+        # Query and paginate
+        ratings = Rating.objects.filter(filters).order_by('-timestamp')
+        paginator = Paginator(ratings, page_size)
+        page_obj = paginator.get_page(page_number)
+
+        # Serialize data
+        ratings_data = list(page_obj.object_list.values())
+
+        # Response
+        return JsonResponse({
+            'ratings': ratings_data,
+            'total_ratings': paginator.count,
+            'num_pages': paginator.num_pages,
+            'current_page': page_obj.number
+        }, status=200)
+    else:
+        return JsonResponse({'error': 'Invalid request method.'}, status=405)
+
+
+def get_all_comments(request):
+    if request.method == "GET":
+        # Fetch query parameters
+        user_id = request.GET.get('user_id')
+        venue_id = request.GET.get('venue_id')
+        meal_period = request.GET.get('meal_period')
+        start_date = request.GET.get('start_date')
+        end_date = request.GET.get('end_date')
+        page_number = request.GET.get('page', 1)
+        page_size = request.GET.get('page_size', 50)
+
+        # Build filters
+        filters = Q()
+        if user_id:
+            filters &= Q(user_id=user_id)
+        if venue_id:
+            filters &= Q(venue_id=venue_id)
+        if meal_period:
+            filters &= Q(meal_period=meal_period)
+        if start_date and end_date:
+            filters &= Q(created_at__range=[start_date, end_date])
+        elif start_date:
+            filters &= Q(created_at__gte=start_date)
+        elif end_date:
+            filters &= Q(created_at__lte=end_date)
+
+        # Query and paginate
+        comments = Comment.objects.filter(filters).order_by('-created_at')
+        paginator = Paginator(comments, page_size)
+        page_obj = paginator.get_page(page_number)
+
+        # Serialize data
+        comments_data = []
+        for comment in page_obj.object_list:
+            comments_data.append({
+                "id": comment.id,
+                "venue_id": comment.venue_id,
+                "user_id": comment.user.id,
+                "meal_period": comment.meal_period,  # Include meal_period
+                "text": comment.text,
+                "like_count": comment.like_count,
+                "created_at": comment.created_at.isoformat(),
+                "updated_at": comment.updated_at.isoformat(),
+            })
+
+        # Response
+        return JsonResponse({
+            'comments': comments_data,
+            'total_comments': paginator.count,
+            'num_pages': paginator.num_pages,
+            'current_page': page_obj.number
+        }, status=200)
+    else:
+        return JsonResponse({'error': 'Invalid request method.'}, status=405)
+        
+        
 
 @csrf_exempt
 @require_POST
@@ -23,6 +128,9 @@ def submit_rating(request):
         user_id = data.get("user_id")
         rating = data.get("rating")
         meal_period = data.get("meal_period")
+        
+        meal_period = meal_period.lower()  # Normalize to lowercase
+
         
         # Log the received data
         logger.debug(f"Received rating submission: venue_id={venue_id}, user_id={user_id}, rating={rating}, meal_period={meal_period}")
@@ -113,7 +221,9 @@ def submit_or_update_comment(request):
         
         if not all([venue_id, user_id, text, meal_period]):
             return JsonResponse({"error": "Missing required fields."}, status=400)
-        
+            
+        meal_period = meal_period.lower()  # Normalize to lowercase
+
         try:
             user = User.objects.get(id=user_id)
             comment, created = Comment.objects.update_or_create(

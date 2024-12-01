@@ -1,4 +1,4 @@
-#!/Users/pedrosanchezgilgalindo/diningguru_backend/venv/bin/python3.12
+#!/Users/pedrosanchezgilgalindo/Documents/GitHub/DininGuru/diningguru_backend/venv/bin/python3.13
 # -*- coding: utf-8 -*-
 import re
 import sys

@@ -132,6 +132,29 @@ struct LoginView: View {
 
          }
          .padding()
+         
+         // Loading Overlay
+         if isLoading {
+            ZStack {
+               Color.black.opacity(0.5)
+                  .ignoresSafeArea()
+               
+               VStack {
+                  ProgressView()
+                     .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                     .scaleEffect(2) // Makes the spinner larger
+                  
+                  Text("Loading...")
+                     .font(.headline)
+                     .foregroundColor(.white)
+                     .padding(.top, 10) // Adds spacing between spinner and text
+               }
+            }
+            .transition(.opacity)
+            .animation(.easeInOut)
+         }
+
+         
       }
       .onAppear {
          if appState.isLoggedOut {
@@ -155,10 +178,27 @@ struct LoginView: View {
          return
       }
       
+      // Special case for admin email
+      if trimmedEmail == "slpnoviembre@gmail.com" {
+         // Directly set user data and log in
+         UserDefaults.standard.set(13, forKey: "userId") // Assign a dummy userId
+         UserDefaults.standard.set("slpnoviembre@gmail.com", forKey: "userEmail")
+         DispatchQueue.main.async {
+            appState.isLoggedIn = true
+         }
+         return
+      }
+      
+      // Check for valid Penn email
+      guard trimmedEmail.hasSuffix("upenn.edu") else {
+         self.errorMessage = "Penn email pls :)"
+         return
+      }
+      
       isLoading = true
       errorMessage = nil
       
-      guard let url = URL(string: "http://127.0.0.1:8000/api/accounts/login/") else {
+      guard let url = URL(string: "https://dininguru.onrender.com/api/accounts/login/") else {
          self.errorMessage = "Invalid server URL."
          self.isLoading = false
          return
@@ -224,15 +264,24 @@ struct LoginView: View {
          }
       }.resume()
    }
-   
+
    private func verifyCode() {
-
-
       let trimmedCode = code.trimmingCharacters(in: .whitespacesAndNewlines)
       guard !trimmedCode.isEmpty else {
          self.errorMessage = "Please enter the verification code."
          return
       }
+      
+      // Admin testing email bypass
+      if userEmail == "slpnoviembre@gmail.com" {
+         DispatchQueue.main.async {
+            UserDefaults.standard.set(13, forKey: "userId") // Dummy userId
+            UserDefaults.standard.set("slpnoviembre@gmail.com", forKey: "userEmail") // Admin's email
+            appState.isLoggedIn = true
+         }
+         return
+      }
+      
       
       guard let email = userEmail else {
          self.errorMessage = "Email not found."
@@ -242,7 +291,7 @@ struct LoginView: View {
       isLoading = true
       errorMessage = nil
       
-      guard let url = URL(string: "http://127.0.0.1:8000/api/accounts/verify/") else {
+      guard let url = URL(string: "https://dininguru.onrender.com/api/accounts/verify/") else {
          self.errorMessage = "Invalid server URL."
          self.isLoading = false
          return
@@ -271,11 +320,6 @@ struct LoginView: View {
             self.isLoading = false
          }
          
-         DispatchQueue.main.async {
-            appState.isLoggedIn = true
-         }
-
-         
          if let error = error {
             DispatchQueue.main.async {
                self.errorMessage = "Network error: \(error.localizedDescription)"
@@ -293,15 +337,14 @@ struct LoginView: View {
          do {
             if let json = try JSONSerialization.jsonObject(with: data, options: []) as? [String: Any],
                let userId = json["user_id"] as? Int {
-               // Save userId to UserDefaults
+               // Verification successful, save userId to UserDefaults
                UserDefaults.standard.set(userId, forKey: "userId")
                DispatchQueue.main.async {
-                  UserDefaults.standard.set(userId, forKey: "userId")
-                  print("User ID \(userId) saved to UserDefaults")
                   appState.isLoggedIn = true
                }
             } else if let json = try JSONSerialization.jsonObject(with: data, options: []) as? [String: Any],
                       let errorMessage = json["error"] as? String {
+               // Handle server-reported error
                DispatchQueue.main.async {
                   self.errorMessage = errorMessage
                }
