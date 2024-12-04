@@ -83,9 +83,11 @@ struct VenueDetailView: View {
    @State private var isWebViewLoading = false
    
    
+   @EnvironmentObject var appState: AppState
+
    
    @StateObject private var keyboardResponder = KeyboardResponder()
-
+   @Binding var isGuest: Bool
    
    
    var body: some View {
@@ -152,6 +154,16 @@ struct VenueDetailView: View {
             dismissButton: .default(Text("OK"))
          )
       }
+      .alert(isPresented: $showAlert) {
+         Alert(
+            title: Text("Authentication Required"),
+            message: Text(alertMessage),
+            primaryButton: .cancel(),
+            secondaryButton: .default(Text("Login"), action: {
+               appState.isLoggedIn = false
+            })
+         )
+      }
       .sheet(item: $selectedURL) { url in
          WebView(url: url, isLoading: $isWebViewLoading)
             .overlay(Group {
@@ -163,11 +175,18 @@ struct VenueDetailView: View {
             })
             .edgesIgnoringSafeArea(.all)
       }
+      
    }
    // MARK: - Rating Functions
    
 
    func submitUserRating() {
+      
+      guard !isGuest else {
+         showGuestActionAlert(actionType: "rating")
+         return
+      }
+      
       guard let selectedRating = selectedRating else { return }
       let mealPeriod = getCurrentMealPeriod()
       
@@ -264,7 +283,19 @@ struct VenueDetailView: View {
    }
 
    
+   private func showGuestActionAlert(actionType: String) {
+      alertMessage = "Please log in to post a \(actionType)."
+      showAlert = true
+   }
+   
     func submitOrUpdateComment() {
+       
+       guard !isGuest else {
+          showGuestActionAlert(actionType: "comment")
+          return
+       }
+       
+       
       let trimmedComment = newCommentText.trimmingCharacters(in: .whitespacesAndNewlines)
       guard !trimmedComment.isEmpty else { return }
       

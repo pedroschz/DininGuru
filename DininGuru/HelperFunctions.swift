@@ -42,23 +42,28 @@ struct Venue: Identifiable, Codable {
    }
    
    var isOpen: Bool {
+      let now = Date()
       let formatter = DateFormatter()
       formatter.dateFormat = "yyyy-MM-dd"
       formatter.timeZone = TimeZone.current
-      let today = formatter.string(from: Date())
-      
-      // Debug: Print today's date
-      print("Today’s Date: \(today)")
+      let today = formatter.string(from: now)
       
       if let todayDay = days.first(where: { $0.date == today }) {
-         // Debug: Print today's status
-         print("Venue \(name) Status Today: \(todayDay.status)")
-         return todayDay.status.lowercased() == "open"
+         if todayDay.status.lowercased() != "open" {
+            return false
+         }
+         
+         for dayPart in todayDay.dayparts {
+            guard let start = parseTime(dayPart.starttime, onDate: now), let end = parseTime(dayPart.endtime, onDate: now) else { continue }
+            if start <= now && now <= end {
+               return true
+            }
+         }
       }
-      
       return false
    }
 }
+
 
 
 

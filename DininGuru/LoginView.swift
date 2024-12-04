@@ -7,21 +7,6 @@
 
 import SwiftUI
 
-
-
-
-class AppState: ObservableObject {
-   @Published var isLoggedIn: Bool = false
-   @Published var isLoggedOut: Bool = false
-   
-   init() {
-      if let _ = UserDefaults.standard.value(forKey: "userId") as? Int {
-         isLoggedIn = true
-      }
-   }
-}
-
-
 struct LoginView: View {
    @State private var username: String = ""
    @State private var code: String = ""
@@ -31,7 +16,11 @@ struct LoginView: View {
    @AppStorage("userId") var userId: Int?
    @AppStorage("userEmail") var userEmail: String?
    @EnvironmentObject var appState: AppState
-   
+
+
+   @AppStorage("isGuest") var isGuest: Bool = false
+   @AppStorage("guestLoginDate") private var guestLoginDateTimestamp: Double?
+
    var body: some View {
       ZStack {
          LinearGradient(
@@ -66,14 +55,15 @@ struct LoginView: View {
                if !isVerificationSent {
                   CustomTextField(placeholder: "Enter your email", text: $username, icon: "envelope")
                } else {
+                  CustomTextField(placeholder: "Enter verification code", text: $code, icon: "lock")
                   Text("Check your inbox! we sent your code to \(userEmail ?? ""). check spam folder :)")
                      .font(.subheadline)
                      .foregroundColor(.white.opacity(0.9))
                      .multilineTextAlignment(.center)
                      .padding(.horizontal)
-                  
-                  CustomTextField(placeholder: "Enter verification code", text: $code, icon: "lock")
                }
+               
+
             }
             .padding(.horizontal)
             
@@ -112,6 +102,13 @@ struct LoginView: View {
             .disabled((isVerificationSent ? code : username).trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isLoading)
             .padding(.horizontal)
             .animation(.easeInOut(duration: 0.2), value: isLoading)
+            
+            Button(action: {
+               appState.loginAsGuest()
+            }) {
+               Text("Login as Guest").foregroundColor(.white)
+            }
+            .padding(.horizontal)
             
             Spacer()
 
@@ -170,6 +167,30 @@ struct LoginView: View {
       isVerificationSent = false
       errorMessage = nil
    }
+   
+
+
+
+
+   
+   var guestLoginDate: Date? {
+      get {
+         if let timestamp = guestLoginDateTimestamp {
+            return Date(timeIntervalSince1970: timestamp)
+         } else {
+            return nil
+         }
+      }
+      set {
+         if let date = newValue {
+            guestLoginDateTimestamp = date.timeIntervalSince1970
+         } else {
+            guestLoginDateTimestamp = nil
+         }
+      }
+   }
+
+
    
    private func sendVerificationCode() {
       let trimmedEmail = username.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -281,6 +302,7 @@ struct LoginView: View {
          }
          return
       }
+      
       
       
       guard let email = userEmail else {

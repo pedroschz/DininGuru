@@ -87,38 +87,37 @@ struct ListElement: View {
             }
             
             // Average Rating
-            if let averageRating = venue.averageRating, let reviewCount = reviewCount {
-               HStack{
-                  HStack(spacing: 3) {
-                     Image(systemName: averageRating >= 0 ? "chevron.up" : "chevron.down")
-                        .foregroundColor(averageColor)
-                        .imageScale(.small)
-                     Text("\(String(format: "%.0f", abs(averageRating * 100)))%")
-                        .font(.subheadline)
-                        .foregroundColor(averageColor)
+            if !isClosedNow() {
+               if let averageRating = venue.averageRating, let reviewCount = reviewCount {
+                  HStack{
+                     HStack(spacing: 3) {
+                        Image(systemName: averageRating >= 0 ? "chevron.up" : "chevron.down")
+                           .foregroundColor(averageColor)
+                           .imageScale(.small)
+                        Text("\(String(format: "%.0f", abs(averageRating * 100)))%")
+                           .font(.subheadline)
+                           .foregroundColor(averageColor)
+                     }
+                     .font(.subheadline)
+                     .padding(.horizontal, 8)
+                     .padding(.vertical, 4)
+                     .bold()
+                     .background(
+                        RoundedRectangle(cornerRadius: 8).fill(averageColor.opacity(0.2))
+                     )
+                     
+                     HStack (spacing: 3){
+                        Image(systemName: "person.3.fill").foregroundColor(.gray).imageScale(.small)
+                        Text("\(reviewCount)")
+                           .foregroundColor(.gray)
+                           .font(.system(size: 15))
+                     }
                   }
-                  .font(.subheadline)
-                  .padding(.horizontal, 8)
-                  .padding(.vertical, 4)
-                  .bold()
-                  .background(
-                     RoundedRectangle(cornerRadius: 8).fill(averageColor.opacity(0.2))
-                  )
-                  
-                  HStack (spacing: 3){
-                     Image(systemName: "person.3.fill").foregroundColor(.gray).imageScale(.small)
-
-
-                     Text("\(reviewCount)")
-                        .foregroundColor(.gray)
-                        .font(.system(size: 15))
-                  }
+               } else {
+                  Text("Loading reviews...")
+                     .font(.subheadline)
+                     .foregroundColor(.gray)
                }
-               
-            } else {
-               Text("Loading reviews...")
-                  .font(.subheadline)
-                  .foregroundColor(.gray)
             }
          }
          .frame(maxWidth: .infinity, alignment: .leading)
